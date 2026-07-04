@@ -1,19 +1,30 @@
 ﻿# Farpy Frontend Paul Lab
 
-UX/UI lab copy of the Farpy frontend.
+UX/UI laboratory copy of Farpy.
 
-Production repo remains separate.
+Production is separate.
 
 ## Run
 
 npm install
 npm run dev
 
-## Focus
+## Mission
 
-Improve UX/UI, clarity, scan speed, trust, and conversion.
+Improve:
+- usability
+- clarity
+- scan speed
+- trust
+- conversion
+- Farpy identity
 
-Do not add fake data.
-Do not add fake artists.
-Do not add fake telemetry.
-Do not touch production deploy scripts unless asked.
+Do not:
+- deploy production from this repo
+- add fake data
+- add fake artists
+- add fake telemetry
+- touch production secrets
+
+Prototype aggressively.
+Document major UX decisions.
