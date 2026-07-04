@@ -1,0 +1,16 @@
+[Unit]
+Description=Farpy Node Pair API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/farpy/node-pair
+ExecStart=/usr/bin/python3 /opt/farpy/node-pair/pair_api_v2.py
+Restart=always
+RestartSec=1
+User=root
+EnvironmentFile=-/etc/farpy/node-pair.env
+
+[Install]
+WantedBy=multi-user.target
+

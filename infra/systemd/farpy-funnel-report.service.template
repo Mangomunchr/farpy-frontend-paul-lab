@@ -1,0 +1,11 @@
+[Unit]
+Description=Farpy Hourly Funnel Report
+Documentation=file:/opt/farpy/reports/funnel-latest.txt
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/farpy-funnel-report
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+

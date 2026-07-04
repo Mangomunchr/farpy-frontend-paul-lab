@@ -1,0 +1,62 @@
+# Farpy full LLM context
+
+Farpy is a web render service for Blender and Octane users. The public alpha
+flow is:
+
+1. Upload a Blender `.blend` file or an Octane `.orbx` file.
+2. Choose render speed where available.
+3. Set frame count for Blender, or render a still for Octane.
+4. See the price before work starts.
+5. Render on remote GPUs.
+6. Download a ZIP.
+7. Open the receipt.
+
+## Renderers
+
+- Blender accepts `.blend` files and supports stills and multi-frame renders.
+- Octane accepts `.orbx` files in public alpha and supports still renders only.
+- The Octane frame input is locked to 1 frame.
+
+## Pricing
+
+- Normal: $0.01 per frame.
+- Fast: $0.02 per frame where available.
+- Octane still renders price as 1 frame.
+- Failed frames cost $0 or are refunded to wallet balance when applicable.
+- No subscription is required for the public alpha render flow.
+
+## Outputs and receipts
+
+Completed jobs provide a ZIP download. Receipts include job and output metadata
+when the backend has generated a real receipt. Private job links control access
+to workspace, download, and receipt surfaces.
+
+Uploaded files and rendered outputs are retained according to Farpy operational
+policies for rendering, delivery, support, storage management, abuse prevention,
+and maintenance.
+
+## Accounts and wallet
+
+Email sign-in is used for stored wallet balance, topups, recent packages, and
+package history. Wallet topups are separate from per-render execution.
+
+## Related Farpy tools
+
+NodeMuncher and Benchmark are separate tools and are not the primary public
+launch surface. The primary product surface is Farpy web render.
+
+## Public pages
+
+- `/`
+- `/pricing`
+- `/addon`
+- `/api`
+- `/faq`
+- `/docs`
+- `/files`
+- `/privacy`
+- `/terms`
+- `/refunds`
+- `/dmca`
+- `/contact`
+- `/status`

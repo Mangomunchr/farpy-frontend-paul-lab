@@ -1,0 +1,15 @@
+[Unit]
+Description=Farpy Benchmark Leaderboard API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/farpy-leaderboard
+ExecStart=/usr/bin/node /opt/farpy-leaderboard/server.cjs
+Restart=always
+RestartSec=5
+EnvironmentFile=-/etc/farpy/leaderboard.env
+
+[Install]
+WantedBy=multi-user.target
+

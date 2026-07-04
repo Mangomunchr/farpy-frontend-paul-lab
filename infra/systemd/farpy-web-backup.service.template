@@ -1,0 +1,8 @@
+[Unit]
+Description=Farpy Web Backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/farpy-web-backup.sh
+EnvironmentFile=-/etc/farpy/backup.env
+

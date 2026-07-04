@@ -1,0 +1,1 @@
+Farpy is a render delivery service for small Blender and Octane packages. Upload a scene, choose frames and delivery speed, track the package, then download the result with a receipt that records the output proof. It is intentionally early access: start small, verify the result, and send brutal feedback.

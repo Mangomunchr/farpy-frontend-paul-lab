@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Farpy Benchmark GPU Index | Public Blender GPU Results</title>
+  <link rel="canonical" href="https://farpy.com/benchmark/" />
+  <meta name="description" content="Compare real Farpy Benchmark GPU submissions, download the Windows benchmark, and view public Blender render performance by GPU." />
+  <meta property="og:title" content="Farpy Benchmark GPU Index | Public Blender GPU Results" />
+  <meta property="og:description" content="Compare real Farpy Benchmark GPU submissions, download the Windows benchmark, and view public Blender render performance by GPU." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://farpy.com/benchmark/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Farpy Benchmark GPU Index | Public Blender GPU Results" />
+  <meta name="twitter:description" content="Compare real Farpy Benchmark GPU submissions, download the Windows benchmark, and view public Blender render performance by GPU." />
+
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:24px;background:#070907;color:#f7f1d1}
+    main{max-width:960px;margin:auto} a{color:#ffe46b} table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #283027;text-align:left} th{font-size:12px;text-transform:uppercase;color:#b9d8c6}
+    .muted{color:#b9d8c6}.err{color:#ffb4a8}.download,.panel{border:1px solid #283027;padding:16px;margin:18px 0;background:#10150f}
+    .actions,.trust,.links{display:flex;flex-wrap:wrap;gap:12px}.button{display:inline-block;padding:10px 12px;border:1px solid #ffe46b;text-decoration:none}
+    .primary{background:#ffe46b;color:#101311;font-weight:800}.trust span{border:1px solid #283027;padding:8px 10px;background:#101311;color:#dcebd5}
+    h1{margin-bottom:8px}.lede{font-size:18px;line-height:1.45;max-width:720px}.note{font-size:13px;color:#b9d8c6}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Compare real GPU benchmark results.</h1>
+    <p class="lede muted">Run Farpy Benchmark on Windows and submit your score. Results are grouped by GPU so Blender users can compare real public submissions.</p>
+    <div class="trust" aria-label="Benchmark trust checks">
+      <span>Real submissions only</span>
+      <span>Public leaderboard</span>
+      <span>Checksums available</span>
+      <span>Windows release</span>
+    </div>
+    <section class="download" aria-label="Download Farpy Benchmark">
+      <h2>Download Farpy Benchmark for Windows</h2>
+      <p class="muted">Run the public desktop benchmark and submit a real result. Windows artifacts only for this release.</p>
+      <p class="actions">
+        <a class="button primary" href="/downloads/farpy-benchmark-windows-amd64.exe">Download Windows Installer</a>
+        <a class="button" href="/downloads/farpy-benchmark-windows-amd64.msi">Download MSI</a>
+        <a href="/downloads/">Checksums</a>
+      </p>
+      <p class="note">Unsigned until EV code signing completes.</p>
+    </section>
+    <p id="status">Loading...</p>
+    <table>
+      <thead><tr><th>GPU</th><th>Submissions</th><th>Avg score</th><th>Median</th><th>Top</th><th>Avg render</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="6">No data loaded.</td></tr></tbody>
+    </table>
+    <section class="panel" aria-label="Benchmark details">
+      <h2>What Farpy Benchmark measures</h2>
+      <p class="muted">Farpy Benchmark measures Blender render performance on the local GPU and submits public result records for comparison.</p>
+      <h2>Why results are public</h2>
+      <p class="muted">Public benchmark pages make GPU performance easier to compare and keep submitted scores inspectable.</p>
+      <h2>How to submit a result</h2>
+      <p class="muted">Download the Windows benchmark, run the test locally, and submit the result from the app.</p>
+      <p class="links">
+        <a href="/benchmark/leaderboard">Leaderboard</a>
+        <a href="/addon">Blender add-on</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/docs">Docs</a>
+        <a href="/status">Status</a>
+      </p>
+    </section>
+  </main>
+  <script>
+    const API_BASE = localStorage.getItem("farpy_leaderboard_api_base") || "/node/v1/leaderboard";
+    const fmt = (n) => Number.isFinite(Number(n)) ? Number(n).toFixed(2).replace(/\.00$/, "") : "-";
+    const plural = (count, singular, pluralLabel) => `${count} ${count === 1 ? singular : pluralLabel}`;
+    async function load(){
+      const status = document.getElementById("status");
+      const rowsEl = document.getElementById("rows");
+      try {
+        const res = await fetch(API_BASE + "/gpus");
+        if (!res.ok) throw new Error("API unavailable");
+        const data = await res.json();
+        const rows = Array.isArray(data.gpus) ? data.gpus : [];
+        const submissions = rows.reduce((sum, g) => sum + (Number(g.submissions) || 0), 0);
+        status.textContent = `${plural(rows.length, "GPU group", "GPU groups")} · ${plural(submissions, "public submission", "public submissions")}`;
+        rowsEl.innerHTML = rows.length ? rows.map((g) => `
+          <tr>
+            <td><a href="/benchmark/gpu/?gpu=${encodeURIComponent(g.gpu_slug)}">${g.gpu_name || g.gpu_slug}</a></td>
+            <td>${g.submissions ?? 0}</td>
+            <td>${fmt(g.avg_score)}</td>
+            <td>${fmt(g.median_score)}</td>
+            <td>${fmt(g.top_score)}</td>
+            <td>${fmt(g.avg_render_seconds)}s</td>
+          </tr>`).join("") : '<tr><td colspan="6">No submissions yet.</td></tr>';
+      } catch {
+        status.className = "err";
+        status.textContent = "Leaderboard API unavailable.";
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

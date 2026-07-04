@@ -1,0 +1,19 @@
+[Unit]
+Description=Farpy Auth Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/farpy-auth
+ExecStart=/usr/bin/node /opt/farpy-auth/server.js
+Restart=always
+RestartSec=2
+User=root
+EnvironmentFile=-/opt/farpy/config/google-auth.env
+EnvironmentFile=-/etc/farpy/auth.env
+EnvironmentFile=-/etc/farpy/auth-secrets.env
+EnvironmentFile=-/etc/farpy/smtp.env
+
+[Install]
+WantedBy=multi-user.target
+

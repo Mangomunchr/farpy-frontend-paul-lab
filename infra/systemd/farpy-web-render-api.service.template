@@ -1,0 +1,20 @@
+[Unit]
+Description=Farpy Web Render API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/farpy-web-render
+ExecStart=/usr/bin/env node /opt/farpy-web-render/scripts/job-api.mjs
+EnvironmentFile=-/etc/farpy/web-render-api.env
+EnvironmentFile=-/etc/farpy/web-render-api-secrets.env
+EnvironmentFile=-/etc/farpy/stripe.env
+EnvironmentFile=-/etc/farpy/btcpay.env
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/farpy-web-render/api.log
+StandardError=append:/var/log/farpy-web-render/api.err.log
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,22 @@
+[Unit]
+Description=Farpy Web Render API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/farpy-web-render
+ExecStart=/usr/bin/env node /opt/farpy-web-render/scripts/job-api.mjs
+Environment=NODE_ENV=production
+Environment=FARPY_WEB_RENDER_HOST=127.0.0.1
+Environment=FARPY_WEB_RENDER_PORT=19102
+Environment=FARPY_WEB_RENDER_DATA_DIR=/var/lib/farpy-web-render
+Environment=BLENDER_EXE=/usr/local/bin/blender
+Environment=FARPY_PUBLIC_SITE_URL=https://farpy.com
+EnvironmentFile=-/etc/farpy/stripe.env
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/farpy-web-render/api.log
+StandardError=append:/var/log/farpy-web-render/api.err.log
+
+[Install]
+WantedBy=multi-user.target

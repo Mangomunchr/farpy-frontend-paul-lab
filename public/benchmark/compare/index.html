@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GPU Comparison - Farpy Benchmark</title>
+  <link rel="canonical" href="https://farpy.com/benchmark/compare/" />
+  <meta name="description" content="Real benchmark comparison from receipt-derived submissions." />
+  <meta property="og:title" content="GPU Comparison - Farpy Benchmark" />
+  <meta property="og:description" content="Real benchmark comparison from receipt-derived submissions." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://farpy.com/benchmark/compare/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="GPU Comparison - Farpy Benchmark" />
+  <meta name="twitter:description" content="Real benchmark comparison from receipt-derived submissions." />
+  <script type="application/ld+json" id="benchmark-jsonld">{"@context":"https://schema.org","@type":"WebPage","name":"GPU Comparison - Farpy Benchmark","url":"https://farpy.com/benchmark/compare/","description":"Real benchmark comparison from receipt-derived submissions.","mainEntity":{"@type":"Dataset","name":"Farpy Benchmark GPU Comparison","url":"https://farpy.com/benchmark/compare/","description":"Real benchmark comparison from receipt-derived submissions.","variableMeasured":["score_delta","render_seconds_delta","sample_count"]}}</script>
+
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:24px;background:#070907;color:#f7f1d1}
+    main{max-width:1040px;margin:auto} a{color:#ffe46b} table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #283027;text-align:left;vertical-align:top}
+    th{font-size:12px;text-transform:uppercase;color:#b9d8c6}.muted{color:#b9d8c6}.err{color:#ffb4a8}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:18px 0}.card{border:1px solid #283027;padding:14px;border-radius:12px;background:#101311}
+    .metric{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.label{font-size:12px;text-transform:uppercase;color:#b9d8c6}.value{font-size:22px;font-weight:700;margin-top:4px}
+    .section{margin-top:28px}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+    @media (max-width:760px){.grid,.metric{grid-template-columns:1fr}body{margin:16px}}
+  </style>
+</head>
+<body>
+  <main>
+    <p><a href="/benchmark/leaderboard">Back to leaderboard</a></p>
+    <h1 id="title">GPU comparison</h1>
+    <p class="muted" id="subtitle">Loading public GPU comparison...</p>
+    <section class="grid" id="gpuCards"></section>
+    <section class="section">
+      <h2>Deltas</h2>
+      <table>
+        <thead><tr><th>Metric</th><th>Delta</th><th>Percent</th></tr></thead>
+        <tbody id="deltas"><tr><td colspan="3">Loading...</td></tr></tbody>
+      </table>
+    </section>
+    <section class="section">
+      <h2>Latest results</h2>
+      <div class="grid">
+        <div class="card">
+          <h3 id="latestA">GPU A</h3>
+          <table>
+            <thead><tr><th>Result</th><th>Score</th><th>Render</th></tr></thead>
+            <tbody id="rowsA"><tr><td colspan="3">Loading...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3 id="latestB">GPU B</h3>
+          <table>
+            <thead><tr><th>Result</th><th>Score</th><th>Render</th></tr></thead>
+            <tbody id="rowsB"><tr><td colspan="3">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const API_BASE = localStorage.getItem("farpy_leaderboard_api_base") || "/node/v1/leaderboard";
+    const unknown = (value) => value === null || value === undefined || value === "" ? "unknown" : value;
+    const escapeHtml = (value) => String(unknown(value))
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+    const fmt = (value, digits = 2) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits).replace(/\.00$/, "") : "unknown";
+    const fmtSeconds = (value) => Number.isFinite(Number(value)) ? `${fmt(value)}s` : "unknown";
+    const fmtPercent = (value) => Number.isFinite(Number(value)) ? `${fmt(value)}%` : "unknown";
+
+    function readCompareSlugs(){
+      const params = new URLSearchParams(location.search);
+      const queryA = params.get("a");
+      const queryB = params.get("b");
+      if (queryA && queryB) return { a: queryA, b: queryB };
+      const parts = location.pathname.split("/").filter(Boolean);
+      const marker = parts.indexOf("compare");
+      const pair = marker >= 0 ? parts[marker + 1] : "";
+      const match = pair ? pair.match(/^(.+)-vs-(.+)$/) : null;
+      return match ? { a: decodeURIComponent(match[1]), b: decodeURIComponent(match[2]) } : { a: "", b: "" };
+    }
+
+    function setMeta(selector, value){
+      const el = document.querySelector(selector);
+      if (el) el.setAttribute("content", value);
+    }
+
+    function setCanonical(value){
+      const el = document.querySelector('link[rel="canonical"]');
+      if (el) el.setAttribute("href", value);
+    }
+
+    function setJsonLd(data){
+      const el = document.getElementById("benchmark-jsonld");
+      if (el) el.textContent = JSON.stringify(data);
+    }
+
+    function gpuCard(gpu){
+      const name = unknown(gpu && gpu.gpu_name);
+      const slug = unknown(gpu && gpu.gpu_slug);
+      return `<article class="card">
+        <h2><a href="/benchmark/gpu/${encodeURIComponent(slug)}">${escapeHtml(name)}</a></h2>
+        <p class="muted mono">${escapeHtml(slug)}</p>
+        <div class="metric">
+          <div><div class="label">Samples</div><div class="value">${escapeHtml(gpu && gpu.sample_count)}</div></div>
+          <div><div class="label">Top score</div><div class="value">${escapeHtml(fmt(gpu && gpu.top_score))}</div></div>
+          <div><div class="label">Average score</div><div class="value">${escapeHtml(fmt(gpu && gpu.average_score))}</div></div>
+          <div><div class="label">Median score</div><div class="value">${escapeHtml(fmt(gpu && gpu.median_score))}</div></div>
+          <div><div class="label">Average render</div><div class="value">${escapeHtml(fmtSeconds(gpu && gpu.average_render_seconds))}</div></div>
+          <div><div class="label">Best render</div><div class="value">${escapeHtml(fmtSeconds(gpu && gpu.best_render_seconds))}</div></div>
+        </div>
+      </article>`;
+    }
+
+    function resultRows(gpu){
+      const rows = Array.isArray(gpu && gpu.latest_results) ? gpu.latest_results : [];
+      return rows.length ? rows.slice(0, 5).map((r) => {
+        const resultId = unknown(r.result_id);
+        const href = r.public_result_url || `/benchmark/result/${encodeURIComponent(resultId)}`;
+        return `<tr>
+          <td><a class="mono" href="${escapeHtml(href)}">${escapeHtml(resultId)}</a></td>
+          <td>${escapeHtml(fmt(r.score))}</td>
+          <td>${escapeHtml(fmtSeconds(r.render_seconds))}</td>
+        </tr>`;
+      }).join("") : '<tr><td colspan="3">No results.</td></tr>';
+    }
+
+    async function load(){
+      const { a, b } = readCompareSlugs();
+      const subtitle = document.getElementById("subtitle");
+      if (!a || !b) {
+        subtitle.textContent = "No GPU pair selected.";
+        document.getElementById("gpuCards").innerHTML = '<div class="card err">Missing GPU slugs.</div>';
+        document.getElementById("deltas").innerHTML = '<tr><td colspan="3">unknown</td></tr>';
+        document.getElementById("rowsA").innerHTML = '<tr><td colspan="3">unknown</td></tr>';
+        document.getElementById("rowsB").innerHTML = '<tr><td colspan="3">unknown</td></tr>';
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/compare/${encodeURIComponent(a)}/${encodeURIComponent(b)}`);
+        if (!res.ok) throw new Error("compare_not_found");
+        const data = await res.json();
+        const title = `${unknown(data.gpu_a && data.gpu_a.gpu_name)} vs ${unknown(data.gpu_b && data.gpu_b.gpu_name)} • Farpy Benchmark`;
+        const url = `https://farpy.com/benchmark/compare/${encodeURIComponent(unknown(data.gpu_a && data.gpu_a.gpu_slug))}-vs-${encodeURIComponent(unknown(data.gpu_b && data.gpu_b.gpu_slug))}`;
+        const description = "Real benchmark comparison from receipt-derived submissions.";
+        document.title = title;
+        setCanonical(url);
+        setMeta('meta[property="og:title"]', title);
+        setMeta('meta[property="og:description"]', description);
+        setMeta('meta[property="og:url"]', url);
+        setMeta('meta[name="twitter:title"]', title);
+        setMeta('meta[name="twitter:description"]', description);
+        setJsonLd({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: title,
+          url,
+          description,
+          mainEntity: {
+            "@type": "Dataset",
+            name: `Farpy Benchmark Comparison ${unknown(data.gpu_a && data.gpu_a.gpu_name)} vs ${unknown(data.gpu_b && data.gpu_b.gpu_name)}`,
+            url,
+            description,
+            variableMeasured: ["score_delta", "render_seconds_delta", "sample_count"],
+            additionalProperty: [
+              { "@type": "PropertyValue", name: "gpu_a", value: unknown(data.gpu_a && data.gpu_a.gpu_name) },
+              { "@type": "PropertyValue", name: "gpu_b", value: unknown(data.gpu_b && data.gpu_b.gpu_name) },
+              { "@type": "PropertyValue", name: "score_delta", value: unknown(data.deltas && data.deltas.score_delta) },
+              { "@type": "PropertyValue", name: "score_delta_percent", value: unknown(data.deltas && data.deltas.score_delta_percent) },
+              { "@type": "PropertyValue", name: "render_seconds_delta", value: unknown(data.deltas && data.deltas.render_seconds_delta) },
+              { "@type": "PropertyValue", name: "sample_count_a", value: unknown(data.deltas && data.deltas.sample_count_a) },
+              { "@type": "PropertyValue", name: "sample_count_b", value: unknown(data.deltas && data.deltas.sample_count_b) },
+            ],
+          },
+        });
+        document.getElementById("title").textContent = `${unknown(data.gpu_a && data.gpu_a.gpu_name)} vs ${unknown(data.gpu_b && data.gpu_b.gpu_name)}`;
+        subtitle.textContent = `${unknown(data.gpu_a && data.gpu_a.gpu_slug)} vs ${unknown(data.gpu_b && data.gpu_b.gpu_slug)}`;
+        document.getElementById("gpuCards").innerHTML = gpuCard(data.gpu_a) + gpuCard(data.gpu_b);
+        document.getElementById("deltas").innerHTML = [
+          ["Average score", data.deltas && data.deltas.score_delta, data.deltas && data.deltas.score_delta_percent],
+          ["Average render seconds", data.deltas && data.deltas.render_seconds_delta, data.deltas && data.deltas.render_seconds_delta_percent],
+          ["Average percentile", `${fmt(data.deltas && data.deltas.average_percentile_a)} vs ${fmt(data.deltas && data.deltas.average_percentile_b)}`, data.deltas && data.deltas.percentile_delta],
+          ["Samples", `${unknown(data.deltas && data.deltas.sample_count_a)} vs ${unknown(data.deltas && data.deltas.sample_count_b)}`, "unknown"],
+        ].map(([label, delta, pct]) => `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(typeof delta === "number" ? fmt(delta) : delta)}</td><td>${escapeHtml(fmtPercent(pct))}</td></tr>`).join("");
+        document.getElementById("latestA").textContent = unknown(data.gpu_a && data.gpu_a.gpu_name);
+        document.getElementById("latestB").textContent = unknown(data.gpu_b && data.gpu_b.gpu_name);
+        document.getElementById("rowsA").innerHTML = resultRows(data.gpu_a);
+        document.getElementById("rowsB").innerHTML = resultRows(data.gpu_b);
+      } catch {
+        subtitle.textContent = "No fake fallback rows.";
+        document.getElementById("gpuCards").innerHTML = '<div class="card err">Comparison unavailable.</div>';
+        document.getElementById("deltas").innerHTML = '<tr><td colspan="3">unknown</td></tr>';
+        document.getElementById("rowsA").innerHTML = '<tr><td colspan="3">unknown</td></tr>';
+        document.getElementById("rowsB").innerHTML = '<tr><td colspan="3">unknown</td></tr>';
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

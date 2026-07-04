@@ -1,0 +1,11 @@
+[Unit]
+Description=Farpy web backup daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=farpy-web-backup.service
+
+[Install]
+WantedBy=timers.target
+

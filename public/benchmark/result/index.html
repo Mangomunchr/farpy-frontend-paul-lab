@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Benchmark Result - Farpy Benchmark</title>
+  <link rel="canonical" href="https://farpy.com/benchmark/result/" />
+  <meta name="description" content="Real benchmark receipt. GPU, score, render time, percentile, benchmark version." />
+  <meta property="og:title" content="Benchmark Result - Farpy Benchmark" />
+  <meta property="og:description" content="Real benchmark receipt. GPU, score, render time, percentile, benchmark version." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://farpy.com/benchmark/result/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Benchmark Result - Farpy Benchmark" />
+  <meta name="twitter:description" content="Real benchmark receipt. GPU, score, render time, percentile, benchmark version." />
+  <script type="application/ld+json" id="benchmark-jsonld">{"@context":"https://schema.org","@type":"WebPage","name":"Benchmark Result - Farpy Benchmark","url":"https://farpy.com/benchmark/result/","description":"Real benchmark receipt. GPU, score, render time, percentile, benchmark version.","mainEntity":{"@type":"Dataset","name":"Farpy Benchmark Result","url":"https://farpy.com/benchmark/result/","description":"Real benchmark receipt. GPU, score, render time, percentile, benchmark version.","variableMeasured":["GPU","score","render_seconds","benchmark_version","scoring_version"]}}</script>
+
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#070907;color:#f7f1d1}
+    body{margin:24px;background:#070907;color:#f7f1d1}
+    main{max-width:820px;margin:auto}
+    a{color:#ffe46b}
+    .card{border:1px solid #283027;padding:18px;border-radius:12px;background:#101311}
+    .top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}
+    h1{margin:0 0 6px;font-size:30px}
+    .muted{color:#b9d8c6}
+    .err{color:#ffb4a8}
+    dl{display:grid;grid-template-columns:210px 1fr;gap:8px 14px;margin:0}
+    dt{color:#b9d8c6}
+    dd{margin:0;overflow-wrap:anywhere}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #283027;border-radius:10px;padding:14px;background:#070907;color:#f7f1d1}
+    .sectionTitle{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:#b9d8c6;margin:22px 0 10px}
+    @media(max-width:640px){body{margin:14px}.top{display:block}dl{grid-template-columns:1fr}dt{font-size:12px;text-transform:uppercase;letter-spacing:.1em}}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="top">
+      <div>
+        <h1>Farpy Benchmark Result</h1>
+        <p class="muted" id="subtitle">Loading receipt.</p>
+      </div>
+      <p><a href="/benchmark/leaderboard">Back to leaderboard</a></p>
+    </div>
+    <section class="card" id="card">Loading...</section>
+  </main>
+  <script>
+    const API_BASE = localStorage.getItem("farpy_leaderboard_api_base") || "/node/v1/leaderboard";
+    const UNKNOWN = "unknown";
+
+    function readResultId(){
+      const queryId = new URLSearchParams(location.search).get("id");
+      if (queryId) return queryId;
+      const parts = location.pathname.split("/").filter(Boolean);
+      const marker = parts.lastIndexOf("result");
+      return marker >= 0 && parts[marker + 1] ? decodeURIComponent(parts[marker + 1]) : "";
+    }
+
+    function text(value){
+      if (value === null || value === undefined || value === "") return UNKNOWN;
+      return String(value);
+    }
+
+    function numberText(value, suffix){
+      const n = Number(value);
+      return Number.isFinite(n) ? `${n}${suffix || ""}` : UNKNOWN;
+    }
+
+    function escapeHtml(value){
+      return text(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function row(label, value){
+      return `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`;
+    }
+
+    function section(title, rows){
+      return `<div class="sectionTitle">${escapeHtml(title)}</div><dl>${rows.join("")}</dl>`;
+    }
+
+    function setMeta(selector, value){
+      const el = document.querySelector(selector);
+      if (el) el.setAttribute("content", value);
+    }
+
+    function setCanonical(value){
+      const el = document.querySelector('link[rel="canonical"]');
+      if (el) el.setAttribute("href", value);
+    }
+
+    function setJsonLd(data){
+      const el = document.getElementById("benchmark-jsonld");
+      if (el) el.textContent = JSON.stringify(data);
+    }
+
+    async function load(){
+      const card = document.getElementById("card");
+      const subtitle = document.getElementById("subtitle");
+      const id = readResultId();
+      if (!id) {
+        card.className = "card err";
+        card.textContent = "Missing result id.";
+        subtitle.textContent = "No result selected.";
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/result/${encodeURIComponent(id)}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("not found");
+        const payload = await res.json();
+        const r = payload.result || payload;
+        const resultUrl = r.public_result_url || `https://farpy.com/benchmark/result/${encodeURIComponent(text(r.result_id))}`;
+        const title = `Farpy Benchmark • ${text(r.gpu_name)} • Score ${text(r.score)}`;
+        const description = `Real benchmark receipt. ${text(r.gpu_name)}, score ${text(r.score)}, render ${text(r.render_seconds)}s, ${text(r.global_percentile_label)}, ${text(r.benchmark_version)}.`;
+        document.title = title;
+        setCanonical(resultUrl);
+        setMeta('meta[property="og:title"]', title);
+        setMeta('meta[property="og:description"]', description);
+        setMeta('meta[property="og:url"]', resultUrl);
+        setMeta('meta[name="twitter:title"]', title);
+        setMeta('meta[name="twitter:description"]', description);
+        setJsonLd({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: title,
+          url: resultUrl,
+          description,
+          mainEntity: {
+            "@type": "Dataset",
+            name: `Farpy Benchmark Result ${text(r.result_id)}`,
+            identifier: text(r.result_id),
+            url: resultUrl,
+            description,
+            variableMeasured: ["GPU", "score", "render_seconds", "benchmark_version", "scoring_version"],
+            measurementTechnique: text(r.renderer),
+            additionalProperty: [
+              { "@type": "PropertyValue", name: "result_id", value: text(r.result_id) },
+              { "@type": "PropertyValue", name: "receipt_id", value: text(r.receipt_id) },
+              { "@type": "PropertyValue", name: "GPU", value: text(r.gpu_name) },
+              { "@type": "PropertyValue", name: "score", value: text(r.score) },
+              { "@type": "PropertyValue", name: "render_seconds", value: text(r.render_seconds) },
+              { "@type": "PropertyValue", name: "benchmark_version", value: text(r.benchmark_version) },
+              { "@type": "PropertyValue", name: "scoring_version", value: text(r.scoring_version) },
+              { "@type": "PropertyValue", name: "public_result_url", value: resultUrl },
+            ],
+          },
+        });
+        subtitle.textContent = `${text(r.gpu_name)} - ${numberText(r.score, "")} ${text(r.score_units)}`;
+
+        card.innerHTML = [
+          section("Receipt", [
+            row("Receipt ID", r.receipt_id),
+            row("Result ID", r.result_id),
+            row("Created", r.created_at),
+            row("Receipt schema", r.receipt_schema_version),
+            row("Public result URL", r.public_result_url),
+          ]),
+          section("Benchmark versions", [
+            row("App version", r.app_version),
+            row("Benchmark version", r.benchmark_version),
+            row("Scene version", r.scene_version),
+            row("Scoring version", r.scoring_version),
+          ]),
+          section("Hardware", [
+            row("GPU", r.gpu_name),
+            row("GPU vendor", r.gpu_vendor),
+            row("VRAM", numberText(r.vram_gb, " GB")),
+            row("CPU", r.cpu_name),
+            row("RAM", numberText(r.ram_gb, " GB")),
+            row("OS", r.os),
+            row("Driver", r.driver_version),
+          ]),
+          section("Render and score", [
+            row("Renderer", r.renderer),
+            row("Render device", r.render_device),
+            row("Render seconds", numberText(r.render_seconds, "s")),
+            row("Score", `${text(r.score)} ${text(r.score_units)}`),
+            row("Rank", r.rank ? `#${r.rank}` : UNKNOWN),
+            row("Global rank", r.global_rank ? `#${r.global_rank} of ${text(r.global_sample_count)}` : UNKNOWN),
+            row("Global percentile", r.global_percentile_label),
+            row("GPU rank", r.gpu_rank ? `#${r.gpu_rank} of ${text(r.gpu_sample_count)}` : UNKNOWN),
+            row("GPU percentile", r.gpu_percentile_label),
+          ]),
+          section("Hashes", [
+            row("Hardware probe hash", r.hardware_probe_hash),
+            row("Benchmark scene hash", r.benchmark_scene_hash),
+          ]),
+          `<div class="sectionTitle">Share text</div><pre>${escapeHtml(r.share_text)}</pre>`
+        ].join("");
+      } catch {
+        card.className = "card err";
+        card.textContent = "Result unavailable.";
+        subtitle.textContent = "No fake fallback data.";
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

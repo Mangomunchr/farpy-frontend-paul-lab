@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GPU Detail - Farpy Benchmark</title>
+  <link rel="canonical" href="https://farpy.com/benchmark/gpu/" />
+  <meta name="description" content="Real benchmark statistics, percentiles, comparisons and receipts." />
+  <meta property="og:title" content="GPU Detail - Farpy Benchmark" />
+  <meta property="og:description" content="Real benchmark statistics, percentiles, comparisons and receipts." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://farpy.com/benchmark/gpu/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="GPU Detail - Farpy Benchmark" />
+  <meta name="twitter:description" content="Real benchmark statistics, percentiles, comparisons and receipts." />
+  <script type="application/ld+json" id="benchmark-jsonld">{"@context":"https://schema.org","@type":"WebPage","name":"GPU Detail - Farpy Benchmark","url":"https://farpy.com/benchmark/gpu/","description":"Real benchmark statistics, percentiles, comparisons and receipts.","mainEntity":{"@type":"Dataset","name":"Farpy Benchmark GPU Dataset","url":"https://farpy.com/benchmark/gpu/","description":"Real benchmark statistics, percentiles, comparisons and receipts.","variableMeasured":["score","render_seconds","sample_count","percentile_distribution"]}}</script>
+
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:24px;background:#070907;color:#f7f1d1}
+    main{max-width:960px;margin:auto} a{color:#ffe46b} table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #283027;text-align:left;vertical-align:top}
+    th{font-size:12px;text-transform:uppercase;color:#b9d8c6}.muted{color:#b9d8c6}.err{color:#ffb4a8}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.card{border:1px solid #283027;padding:14px;border-radius:12px;background:#101311}
+    .label{font-size:12px;text-transform:uppercase;color:#b9d8c6}.value{font-size:22px;font-weight:700;margin-top:4px}
+    .section{margin-top:28px}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+    @media (max-width:720px){.stats{grid-template-columns:repeat(2,1fr)}body{margin:16px}}
+  </style>
+</head>
+<body>
+  <main>
+    <p><a href="/benchmark/leaderboard">Back to leaderboard</a></p>
+    <h1 id="title">GPU benchmark</h1>
+    <p class="muted" id="subtitle">Loading public GPU stats...</p>
+    <section class="stats" id="stats"></section>
+    <section class="section">
+      <h2>Percentile distribution</h2>
+      <table>
+        <thead><tr><th>Bucket</th><th>Results</th></tr></thead>
+        <tbody id="percentiles"><tr><td colspan="2">Loading...</td></tr></tbody>
+      </table>
+    </section>
+    <section class="section">
+      <h2>Latest results</h2>
+      <table>
+        <thead><tr><th>Result</th><th>Receipt</th><th>Score</th><th>Render</th><th>Version</th><th>Created</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+      </table>
+    </section>
+    <section class="section">
+      <h2>Benchmark versions</h2>
+      <table>
+        <thead><tr><th>Benchmark version</th><th>Samples</th></tr></thead>
+        <tbody id="versions"><tr><td colspan="2">Loading...</td></tr></tbody>
+      </table>
+    </section>
+  </main>
+  <script>
+    const API_BASE = localStorage.getItem("farpy_leaderboard_api_base") || "/node/v1/leaderboard";
+    const unknown = (value) => value === null || value === undefined || value === "" ? "unknown" : value;
+    const escapeHtml = (value) => String(unknown(value))
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+    const fmt = (value, digits = 2) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits).replace(/\.00$/, "") : "unknown";
+    const fmtSeconds = (value) => Number.isFinite(Number(value)) ? `${fmt(value)}s` : "unknown";
+
+    function readGpuSlug(){
+      const queryGpu = new URLSearchParams(location.search).get("gpu");
+      if (queryGpu) return queryGpu;
+      const parts = location.pathname.split("/").filter(Boolean);
+      const marker = parts.indexOf("gpu");
+      return marker >= 0 && parts[marker + 1] ? decodeURIComponent(parts[marker + 1]) : "";
+    }
+
+    function stat(label, value){
+      return `<div class="card"><div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(value)}</div></div>`;
+    }
+
+    function setMeta(selector, value){
+      const el = document.querySelector(selector);
+      if (el) el.setAttribute("content", value);
+    }
+
+    function setCanonical(value){
+      const el = document.querySelector('link[rel="canonical"]');
+      if (el) el.setAttribute("href", value);
+    }
+
+    function setJsonLd(data){
+      const el = document.getElementById("benchmark-jsonld");
+      if (el) el.textContent = JSON.stringify(data);
+    }
+
+    async function load(){
+      const rowsEl = document.getElementById("rows");
+      const versionsEl = document.getElementById("versions");
+      const percentilesEl = document.getElementById("percentiles");
+      const subtitle = document.getElementById("subtitle");
+      const slug = readGpuSlug();
+      if (!slug) {
+        subtitle.textContent = "No GPU selected.";
+        rowsEl.innerHTML = '<tr><td colspan="6" class="err">Missing GPU slug.</td></tr>';
+        versionsEl.innerHTML = '<tr><td colspan="2">unknown</td></tr>';
+        percentilesEl.innerHTML = '<tr><td colspan="2">unknown</td></tr>';
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/gpu/${encodeURIComponent(slug)}`);
+        if (!res.ok) throw new Error("gpu_not_found");
+        const data = await res.json();
+        const pageUrl = `https://farpy.com/benchmark/gpu/${encodeURIComponent(unknown(data.gpu_slug))}`;
+        const pageTitle = `Farpy Benchmark • ${unknown(data.gpu_name)}`;
+        const pageDescription = "Real benchmark statistics, percentiles, comparisons and receipts.";
+        document.title = pageTitle;
+        setCanonical(pageUrl);
+        setMeta('meta[property="og:title"]', pageTitle);
+        setMeta('meta[property="og:description"]', pageDescription);
+        setMeta('meta[property="og:url"]', pageUrl);
+        setMeta('meta[name="twitter:title"]', pageTitle);
+        setMeta('meta[name="twitter:description"]', pageDescription);
+        setJsonLd({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: pageTitle,
+          url: pageUrl,
+          description: pageDescription,
+          mainEntity: {
+            "@type": "Dataset",
+            name: `Farpy Benchmark GPU Dataset ${unknown(data.gpu_name)}`,
+            url: pageUrl,
+            description: pageDescription,
+            variableMeasured: ["score", "render_seconds", "sample_count", "percentile_distribution"],
+            additionalProperty: [
+              { "@type": "PropertyValue", name: "gpu_name", value: unknown(data.gpu_name) },
+              { "@type": "PropertyValue", name: "gpu_slug", value: unknown(data.gpu_slug) },
+              { "@type": "PropertyValue", name: "sample_count", value: unknown(data.sample_count) },
+              { "@type": "PropertyValue", name: "average_score", value: unknown(data.average_score) },
+              { "@type": "PropertyValue", name: "median_score", value: unknown(data.median_score) },
+              { "@type": "PropertyValue", name: "top_score", value: unknown(data.top_score) },
+              { "@type": "PropertyValue", name: "average_render_seconds", value: unknown(data.average_render_seconds) },
+            ],
+          },
+        });
+        document.getElementById("title").textContent = unknown(data.gpu_name);
+        subtitle.textContent = `${unknown(data.gpu_slug)} · last updated ${unknown(data.last_updated)}`;
+        document.getElementById("stats").innerHTML = [
+          stat("Samples", unknown(data.sample_count)),
+          stat("Average score", fmt(data.average_score)),
+          stat("Median score", fmt(data.median_score)),
+          stat("Top score", fmt(data.top_score)),
+          stat("Average render", fmtSeconds(data.average_render_seconds)),
+          stat("Median render", fmtSeconds(data.median_render_seconds)),
+          stat("Best render", fmtSeconds(data.best_render_seconds)),
+          stat("VRAM", Number.isFinite(Number(data.vram_gb)) ? `${fmt(data.vram_gb)} GB` : "unknown"),
+        ].join("");
+
+        const rows = Array.isArray(data.latest_results) ? data.latest_results : [];
+        const distribution = data.percentile_distribution;
+        percentilesEl.innerHTML = distribution ? [
+          ["Top 1%", distribution.top_1],
+          ["Top 5%", distribution.top_5],
+          ["Top 10%", distribution.top_10],
+          ["Top 25%", distribution.top_25],
+          ["Top 50%", distribution.top_50],
+          ["Bottom 50%", distribution.bottom_50],
+        ].map(([label, value]) => `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(value)}</td></tr>`).join("") : '<tr><td colspan="2">Percentiles unavailable until at least 3 samples.</td></tr>';
+        rowsEl.innerHTML = rows.length ? rows.map((r) => {
+          const resultId = unknown(r.result_id);
+          const resultHref = r.public_result_url || `/benchmark/result/${encodeURIComponent(resultId)}`;
+          return `<tr>
+            <td><a class="mono" href="${escapeHtml(resultHref)}">${escapeHtml(resultId)}</a></td>
+            <td class="mono">${escapeHtml(r.receipt_id)}</td>
+            <td>${escapeHtml(fmt(r.score))}</td>
+            <td>${escapeHtml(fmtSeconds(r.render_seconds))}</td>
+            <td>${escapeHtml(r.benchmark_version)}<br><span class="muted">${escapeHtml(r.receipt_schema_version)}</span></td>
+            <td>${escapeHtml(r.created_at)}</td>
+          </tr>`;
+        }).join("") : '<tr><td colspan="6">No results.</td></tr>';
+
+        const versions = Array.isArray(data.benchmark_versions) ? data.benchmark_versions : [];
+        versionsEl.innerHTML = versions.length ? versions.map((item) => `
+          <tr><td>${escapeHtml(item.benchmark_version)}</td><td>${escapeHtml(item.sample_count)}</td></tr>
+        `).join("") : '<tr><td colspan="2">unknown</td></tr>';
+      } catch {
+        document.getElementById("title").textContent = slug;
+        subtitle.textContent = "No fake fallback rows.";
+        rowsEl.innerHTML = '<tr><td colspan="6" class="err">GPU unavailable.</td></tr>';
+        versionsEl.innerHTML = '<tr><td colspan="2">unknown</td></tr>';
+        percentilesEl.innerHTML = '<tr><td colspan="2">unknown</td></tr>';
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

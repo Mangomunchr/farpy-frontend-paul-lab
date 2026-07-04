@@ -1,0 +1,9 @@
+[Unit]
+Description=Farpy Status JSON Generator
+
+[Service]
+Type=oneshot
+ExecStart=/opt/farpy/status/bin/generate-status.sh
+EnvironmentFile=-/etc/farpy/redis.env
+EnvironmentFile=-/etc/farpy/status.env
+

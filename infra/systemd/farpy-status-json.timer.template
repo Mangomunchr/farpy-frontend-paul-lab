@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Farpy status JSON generator every 30s
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+Unit=farpy-status-json.service
+
+[Install]
+WantedBy=timers.target
+

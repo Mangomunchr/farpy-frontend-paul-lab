@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Farpy funnel report hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+Unit=farpy-funnel-report.service
+
+[Install]
+WantedBy=timers.target
+

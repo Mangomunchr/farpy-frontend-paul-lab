@@ -1,0 +1,26 @@
+
+> farpy-web@0.1.0 dev
+> next dev -p 3018
+
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3018
+- Network:       http://192.168.1.38:3018
+✓ Ready in 2.4s
+
+ GET /booth 200 in 1057ms (next.js: 799ms, application-code: 258ms)
+ GET /booth 200 in 74ms (next.js: 5ms, application-code: 69ms)
+ GET /booth 200 in 90ms (next.js: 4ms, application-code: 85ms)
+ GET /booth 200 in 308ms (next.js: 5ms, application-code: 303ms)
+ GET /booth 200 in 215ms (next.js: 9ms, application-code: 206ms)
+ GET /booth 200 in 268ms (next.js: 5ms, application-code: 264ms)
+ GET /booth 200 in 170ms (next.js: 6ms, application-code: 164ms)
+ GET /booth 200 in 83ms (next.js: 4ms, application-code: 79ms)
+ GET /booth 200 in 110ms (next.js: 5ms, application-code: 105ms)
+ GET /booth 200 in 85ms (next.js: 4ms, application-code: 81ms)
+ GET /booth 200 in 88ms (next.js: 4ms, application-code: 84ms)
+ GET /booth 200 in 100ms (next.js: 4ms, application-code: 96ms)
+ GET /booth?audit=1783123801 200 in 102ms (next.js: 4ms, application-code: 98ms)
+ GET /booth?metrics=1 200 in 92ms (next.js: 3ms, application-code: 89ms)
+ GET /booth?cdp=booth-desktop-1440x1100.png-1783124013116 200 in 79ms (next.js: 3ms, application-code: 76ms)
+ GET /booth?cdp=booth-mobile-390x1200.png-1783124014617 200 in 73ms (next.js: 2ms, application-code: 71ms)
+[?25h

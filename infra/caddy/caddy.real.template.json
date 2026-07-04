@@ -1,0 +1,205 @@
+{
+  "_template": {
+    "name": "caddy.real.template.json",
+    "status": "sanitized source-control template only",
+    "source": "Derived from read-only production Caddy route shape on 2026-06-30",
+    "not_a_secret_store": true,
+    "not_a_drop_in_replacement": true,
+    "caveats": [
+      "Do not deploy this file directly without validating against the live Caddy version.",
+      "No certificates, API keys, cookies, webhook secrets, or credentials are included.",
+      "Generated status/audit artifacts under the static root must be preserved, regenerated, or intentionally retired during deploys.",
+      "Host-local ports are documented as internal upstream boundaries, not public listener recommendations."
+    ]
+  },
+  "security_headers": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Content-Security-Policy": "baseline policy allowing Farpy static assets, Google OAuth, Stripe checkout, and existing analytics integrations"
+  },
+  "hosts": {
+    "farpy.com": {
+      "static_root": "/opt/farpy.com/out",
+      "routes": [
+        {
+          "name": "legacy_real_redirect",
+          "paths": ["/real", "/real/", "/real/*"],
+          "action": "permanent redirect to https://farpy.com/; preserve query string where the production rule does"
+        },
+        {
+          "name": "homepage_and_static_export",
+          "paths": ["/", "/*"],
+          "action": "serve Next static export from /opt/farpy.com/out with file_server fallback"
+        },
+        {
+          "name": "workspace_shell",
+          "paths": ["/workspace", "/workspace/", "/workspace/JOB-*"],
+          "action": "serve exported workspace shell for package tracker routes"
+        },
+        {
+          "name": "downloads",
+          "paths": ["/downloads", "/downloads/", "/downloads/*"],
+          "action": "serve public downloads and SHA256 sidecars from static root"
+        },
+        {
+          "name": "status_shell",
+          "paths": ["/status", "/status/", "/status/*"],
+          "action": "serve exported status page; generated status JSON must be managed separately"
+        },
+        {
+          "name": "auth_proxy",
+          "paths": ["/v1/auth/*"],
+          "upstream": "127.0.0.1:8092"
+        },
+        {
+          "name": "wallet_account_proxy",
+          "paths": ["/v1/wallet/*", "/v1/account/*", "/checkout"],
+          "upstream": "127.0.0.1:19102"
+        },
+        {
+          "name": "web_render_api_proxy",
+          "paths": ["/node/v1/web-render", "/node/v1/web-render/*"],
+          "upstream": "127.0.0.1:19102"
+        },
+        {
+          "name": "node_pair_proxy",
+          "paths": ["/node/v1/pair*"],
+          "upstream": "127.0.0.1:19002"
+        },
+        {
+          "name": "legacy_submit_proxy",
+          "paths": ["/submit*", "/real-submit/*", "/api/submit"],
+          "upstream": "127.0.0.1:8097"
+        },
+        {
+          "name": "legacy_api_proxy",
+          "paths": ["/api/*"],
+          "upstream": "127.0.0.1:8097"
+        },
+        {
+          "name": "funnel_event",
+          "paths": ["/funnel-event"],
+          "upstream": "127.0.0.1:19181",
+          "request_body_limit": "32KB"
+        },
+        {
+          "name": "ux_beacon",
+          "paths": ["/ux/*"],
+          "action": "respond 204"
+        },
+        {
+          "name": "public_outputs",
+          "paths": ["/render-output/*", "/outputs/*"],
+          "action": "serve static output artifacts rooted at /opt/farpy.com/out/outputs with attachment headers"
+        }
+      ]
+    },
+    "www.farpy.com": {
+      "routes": [
+        {
+          "name": "apex_redirect",
+          "paths": ["/*"],
+          "action": "permanent redirect to https://farpy.com{uri}"
+        }
+      ]
+    },
+    "api.farpy.com": {
+      "routes": [
+        {
+          "name": "leaderboard_api",
+          "paths": ["/node/v1/leaderboard", "/node/v1/leaderboard/*"],
+          "upstream": "127.0.0.1:19022"
+        },
+        {
+          "name": "upload_api",
+          "paths": ["/upload*"],
+          "upstream": "127.0.0.1:8096"
+        },
+        {
+          "name": "node_control_api",
+          "paths": ["/node/v1/heartbeat", "/node/v1/lease/*", "/node/v1/receipts", "/node/v1/pair/*"],
+          "upstream": "127.0.0.1:19002"
+        },
+        {
+          "name": "stripe_webhook",
+          "paths": ["/webhooks/stripe", "/webhooks/stripe*"],
+          "method": "POST",
+          "rewrite": "/webhook",
+          "upstream": "127.0.0.1:8091"
+        },
+        {
+          "name": "checkout_api",
+          "paths": ["/node/v1/checkout", "/node/v1/checkout/*"],
+          "upstream": "127.0.0.1:19024"
+        },
+        {
+          "name": "btcpay_create_legacy",
+          "paths": ["/api/topup/btcpay/create"],
+          "upstream": "127.0.0.1:8097",
+          "notes": "CORS handling exists in production; keep fail-closed auth behavior."
+        },
+        {
+          "name": "jobs_api_default",
+          "paths": ["/*"],
+          "upstream": "127.0.0.1:8097"
+        }
+      ]
+    },
+    "benchmark": {
+      "static_root": "/var/www/farpy/benchmark",
+      "routes": [
+        {
+          "name": "benchmark_result",
+          "paths": ["/benchmark/result/*"],
+          "rewrite": "/result/index.html"
+        },
+        {
+          "name": "benchmark_gpu",
+          "paths": ["/benchmark/gpu/*"],
+          "rewrite": "/gpu/index.html"
+        },
+        {
+          "name": "benchmark_compare",
+          "paths": ["/benchmark/compare/*"],
+          "rewrite": "/compare/index.html"
+        },
+        {
+          "name": "benchmark_static_sections",
+          "paths": ["/benchmark/leaderboard", "/benchmark/latest", "/benchmark/search", "/benchmark/api"],
+          "action": "serve matching section index.html under /var/www/farpy/benchmark"
+        },
+        {
+          "name": "benchmark_root",
+          "paths": ["/benchmark", "/benchmark/*"],
+          "action": "strip /benchmark prefix and serve static benchmark files"
+        }
+      ]
+    },
+    "origin.farpy.com": {
+      "routes": [
+        {
+          "name": "origin_health",
+          "paths": ["/health"],
+          "upstream": "127.0.0.1:18082"
+        },
+        {
+          "name": "origin_worker",
+          "paths": ["/worker/*", "/*"],
+          "upstream": "127.0.0.1:18888"
+        }
+      ]
+    },
+    "status.farpy.com": {
+      "static_root": "/opt/farpy.com/out/status",
+      "routes": [
+        {
+          "name": "status_static",
+          "paths": ["/*"],
+          "action": "serve generated public status artifacts"
+        }
+      ]
+    }
+  }
+}

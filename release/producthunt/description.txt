@@ -1,0 +1,1 @@
+Farpy lets artists send small Blender and Octane render packages, track delivery, download a ZIP, and keep a SHA-256 delivery receipt. Built for Retail Alpha: honest progress, wallet tracking, and no subscription.

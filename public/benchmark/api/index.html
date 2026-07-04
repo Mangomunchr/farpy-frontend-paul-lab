@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Farpy Benchmark API</title>
+  <link rel="canonical" href="https://farpy.com/benchmark/api" />
+  <meta name="description" content="Read-only public API documentation for Farpy Benchmark leaderboard endpoints." />
+  <meta property="og:title" content="Farpy Benchmark API" />
+  <meta property="og:description" content="Read-only public API documentation for Farpy Benchmark leaderboard endpoints." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://farpy.com/benchmark/api" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Farpy Benchmark API" />
+  <meta name="twitter:description" content="Read-only public API documentation for Farpy Benchmark leaderboard endpoints." />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"Farpy Benchmark API","url":"https://farpy.com/benchmark/api","description":"Read-only public API documentation for Farpy Benchmark leaderboard endpoints.","mainEntity":{"@type":"Dataset","name":"Farpy Benchmark Public API","description":"Read-only receipt-derived benchmark leaderboard endpoints.","license":"https://farpy.com/benchmark/api"}}</script>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:24px;background:#070907;color:#f7f1d1}
+    main{max-width:940px;margin:auto} a{color:#ffe46b} h1{margin-bottom:6px}.muted{color:#b9d8c6}
+    section{margin-top:28px} code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #283027;border-radius:10px;padding:14px;background:#101311;color:#f7f1d1}
+    table{width:100%;border-collapse:collapse} th,td{padding:10px;border-bottom:1px solid #283027;text-align:left;vertical-align:top}
+    th{font-size:12px;text-transform:uppercase;color:#b9d8c6}.links{display:flex;gap:12px;flex-wrap:wrap}
+    @media(max-width:700px){body{margin:16px}}
+  </style>
+</head>
+<body>
+  <main>
+    <p class="links"><a href="/benchmark/leaderboard">Leaderboard</a><a href="/benchmark/latest">Latest</a><a href="/benchmark/search">Search</a></p>
+    <h1>Farpy Benchmark API</h1>
+    <p class="muted">Read-only public endpoints. Data is derived from submitted benchmark receipts.</p>
+
+    <section>
+      <h2>Model</h2>
+      <p>The public benchmark API is receipt-first. Result, GPU, compare, search, and latest responses are derived from stored benchmark receipt rows.</p>
+      <p>Version fields such as <code>benchmark_version</code>, <code>scene_version</code>, and <code>scoring_version</code> identify which benchmark and scoring contract produced a result. Percentile calculations use matching benchmark/scoring buckets when available.</p>
+      <p>Unknown or missing fields are returned as <code>null</code> or <code>"unknown"</code>. Empty datasets return empty arrays or counts. There is no fake fallback data.</p>
+    </section>
+
+    <section>
+      <h2>Endpoints</h2>
+      <table>
+        <thead><tr><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET /node/v1/leaderboard/top</code></td><td>Top benchmark rows, sorted by score.</td></tr>
+          <tr><td><code>GET /node/v1/leaderboard/stats</code></td><td>Overall public leaderboard summary.</td></tr>
+          <tr><td><code>GET /node/v1/leaderboard/result/&lt;result_id&gt;</code></td><td>One receipt-shaped public benchmark result.</td></tr>
+          <tr><td><code>GET /node/v1/leaderboard/gpu/&lt;gpu_slug&gt;</code></td><td>GPU aggregate summary, latest results, and percentile distribution when enough samples exist.</td></tr>
+          <tr><td><code>GET /node/v1/leaderboard/compare/&lt;gpu_a&gt;/&lt;gpu_b&gt;</code></td><td>Receipt-derived comparison between two GPU aggregate summaries.</td></tr>
+          <tr><td><code>GET /node/v1/leaderboard/search?q=&lt;query&gt;</code></td><td>Search result and GPU rows by public receipt fields.</td></tr>
+          <tr><td><code>GET /node/v1/leaderboard/latest?limit=&lt;n&gt;</code></td><td>Newest receipt-shaped benchmark results. Default limit is 25; maximum is 100.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Example shapes</h2>
+      <p class="muted">Values below are examples, not live claims.</p>
+      <h3>Result</h3>
+      <pre>{
+  "result_id": "bm_example_result",
+  "receipt_id": "br_example_receipt",
+  "gpu_name": "Example GPU",
+  "gpu_slug": "example-gpu",
+  "score": 1234,
+  "render_seconds": 45.6,
+  "benchmark_version": "benchmark_receipt_v1",
+  "scoring_version": "score-v1",
+  "global_percentile_label": "unknown",
+  "public_result_url": "https://farpy.com/benchmark/result/bm_example_result"
+}</pre>
+      <h3>GPU</h3>
+      <pre>{
+  "gpu_name": "Example GPU",
+  "gpu_slug": "example-gpu",
+  "sample_count": 3,
+  "average_score": 1200,
+  "median_score": 1234,
+  "top_score": 1400,
+  "average_render_seconds": 45.6,
+  "percentile_distribution": {
+    "top_1": 0,
+    "top_5": 0,
+    "top_10": 0,
+    "top_25": 0,
+    "top_50": 1,
+    "bottom_50": 2
+  }
+}</pre>
+      <h3>Search</h3>
+      <pre>{
+  "query": "example",
+  "result_count": 2,
+  "results": [
+    {
+      "type": "result",
+      "title": "Example GPU",
+      "result_id": "bm_example_result",
+      "gpu_slug": "example-gpu",
+      "url": "https://farpy.com/benchmark/result/bm_example_result"
+    },
+    {
+      "type": "gpu",
+      "title": "Example GPU",
+      "gpu_slug": "example-gpu",
+      "sample_count": 3,
+      "url": "/benchmark/gpu/example-gpu"
+    }
+  ]
+}</pre>
+    </section>
+  </main>
+</body>
+</html>

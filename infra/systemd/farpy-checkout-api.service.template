@@ -1,0 +1,16 @@
+[Unit]
+Description=Farpy Checkout API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/farpy-checkout-api
+ExecStart=/usr/bin/node /opt/farpy-checkout-api/server.js
+Restart=always
+RestartSec=2
+EnvironmentFile=-/etc/farpy/stripe.env
+EnvironmentFile=-/etc/farpy/checkout.env
+
+[Install]
+WantedBy=multi-user.target
+

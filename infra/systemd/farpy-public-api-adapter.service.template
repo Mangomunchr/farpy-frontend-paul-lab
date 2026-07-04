@@ -1,0 +1,15 @@
+[Unit]
+Description=Farpy Public API Adapter
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/lib/farpy/public-api-adapter
+ExecStart=/usr/bin/node /var/lib/farpy/public-api-adapter/server.js
+Restart=always
+RestartSec=2
+EnvironmentFile=-/etc/farpy/public-api-adapter.env
+
+[Install]
+WantedBy=multi-user.target
+

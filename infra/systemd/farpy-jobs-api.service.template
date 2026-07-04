@@ -1,0 +1,19 @@
+[Unit]
+Description=Farpy Jobs API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/lib/farpy/jobs-api
+ExecStart=/usr/bin/node /var/lib/farpy/jobs-api/server.js
+Restart=always
+RestartSec=2
+KillMode=process
+EnvironmentFile=-/etc/farpy/jobs-api.env
+EnvironmentFile=-/etc/farpy/btcpay.env
+EnvironmentFile=-/etc/farpy/redis.env
+
+[Install]
+WantedBy=multi-user.target
+

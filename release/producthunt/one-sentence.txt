@@ -1,0 +1,1 @@
+Farpy renders small Blender and Octane packages, then gives you a ZIP and a SHA-256 delivery receipt.

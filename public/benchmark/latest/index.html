@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Latest Benchmark Results</title>
+  <link rel="canonical" href="https://farpy.com/benchmark/latest" />
+  <meta name="description" content="Newest public benchmark results generated from real Farpy Benchmark submissions." />
+  <meta property="og:title" content="Latest Benchmark Results" />
+  <meta property="og:description" content="Newest public benchmark results generated from real Farpy Benchmark submissions." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://farpy.com/benchmark/latest" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Latest Benchmark Results" />
+  <meta name="twitter:description" content="Newest public benchmark results generated from real Farpy Benchmark submissions." />
+  <script type="application/ld+json" id="benchmark-jsonld">{"@context":"https://schema.org","@type":"WebPage","name":"Latest Benchmark Results","url":"https://farpy.com/benchmark/latest","description":"Newest public benchmark results generated from real Farpy Benchmark submissions.","mainEntity":{"@type":"ItemList","name":"Latest Farpy Benchmark Results","itemListElement":[]}}</script>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:24px;background:#070907;color:#f7f1d1}
+    main{max-width:960px;margin:auto} a{color:#ffe46b} table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #283027;text-align:left;vertical-align:top}
+    th{font-size:12px;text-transform:uppercase;color:#b9d8c6}.muted{color:#b9d8c6}.err{color:#ffb4a8}
+    .links{display:flex;gap:12px;flex-wrap:wrap}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+    @media (max-width:680px){body{margin:16px}th:nth-child(4),td:nth-child(4){display:none}}
+  </style>
+</head>
+<body>
+  <main>
+    <p class="links"><a href="/benchmark/leaderboard">Leaderboard</a><a href="/benchmark/search">Search</a></p>
+    <h1>Latest benchmark results</h1>
+    <p class="muted" id="subtitle">Loading newest receipt-derived results...</p>
+    <table>
+      <thead><tr><th>Result</th><th>GPU</th><th>Score</th><th>Render</th><th>Version</th><th>Created</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+    </table>
+  </main>
+  <script>
+    const API_BASE = localStorage.getItem("farpy_leaderboard_api_base") || "/node/v1/leaderboard";
+    const unknown = (value) => value === null || value === undefined || value === "" ? "unknown" : value;
+    const escapeHtml = (value) => String(unknown(value))
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+    const fmt = (value, digits = 2) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits).replace(/\.00$/, "") : "unknown";
+    const fmtSeconds = (value) => Number.isFinite(Number(value)) ? `${fmt(value)}s` : "unknown";
+
+    function setJsonLd(data){
+      const el = document.getElementById("benchmark-jsonld");
+      if (el) el.textContent = JSON.stringify(data);
+    }
+
+    async function load(){
+      const rowsEl = document.getElementById("rows");
+      const subtitle = document.getElementById("subtitle");
+      try {
+        const res = await fetch(`${API_BASE}/latest`, { cache: "no-store" });
+        if (!res.ok) throw new Error("latest_failed");
+        const data = await res.json();
+        subtitle.textContent = `${unknown(data.result_count)} latest result(s)`;
+        const rows = Array.isArray(data.results) ? data.results : [];
+        setJsonLd({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: "Latest Benchmark Results",
+          url: "https://farpy.com/benchmark/latest",
+          description: "Newest public benchmark results generated from real Farpy Benchmark submissions.",
+          mainEntity: {
+            "@type": "ItemList",
+            name: "Latest Farpy Benchmark Results",
+            itemListElement: rows.map((r, index) => ({
+              "@type": "ListItem",
+              position: index + 1,
+              url: r.public_result_url || `https://farpy.com/benchmark/result/${encodeURIComponent(unknown(r.result_id))}`,
+              name: `${unknown(r.gpu_name)} score ${unknown(r.score)}`,
+            })),
+          },
+        });
+        rowsEl.innerHTML = rows.length ? rows.map((r) => {
+          const resultHref = r.public_result_url || `/benchmark/result/${encodeURIComponent(unknown(r.result_id))}`;
+          const gpuHref = r.gpu_page_url || `/benchmark/gpu/${encodeURIComponent(unknown(r.gpu_slug))}`;
+          return `<tr>
+            <td><a class="mono" href="${escapeHtml(resultHref)}">${escapeHtml(r.result_id)}</a><br><span class="muted">${escapeHtml(r.receipt_id)}</span></td>
+            <td><a href="${escapeHtml(gpuHref)}">${escapeHtml(r.gpu_name)}</a><br><span class="muted mono">${escapeHtml(r.gpu_slug)}</span></td>
+            <td>${escapeHtml(fmt(r.score))}</td>
+            <td>${escapeHtml(fmtSeconds(r.render_seconds))}</td>
+            <td>${escapeHtml(r.benchmark_version)}<br><span class="muted">${escapeHtml(r.scoring_version)}</span></td>
+            <td>${escapeHtml(r.created_at)}</td>
+          </tr>`;
+        }).join("") : '<tr><td colspan="6">No results.</td></tr>';
+      } catch {
+        subtitle.textContent = "No fake fallback rows.";
+        rowsEl.innerHTML = '<tr><td colspan="6" class="err">Latest results unavailable.</td></tr>';
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

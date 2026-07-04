@@ -1,0 +1,1 @@
+Farpy is launching a Retail Alpha for Blender and Octane render delivery. Artists can send small render packages, track progress, download a ZIP, and keep a SHA-256 delivery receipt. The launch focuses on clear pricing, wallet tracking, and proof-backed output rather than broad render-farm scale claims.

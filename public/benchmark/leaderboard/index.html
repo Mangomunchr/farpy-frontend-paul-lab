@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Farpy Benchmark Leaderboard</title>
+  <link rel="canonical" href="https://farpy.com/benchmark/leaderboard" />
+  <meta name="description" content="Real submitted Farpy Benchmark results ranked by score." />
+  <meta property="og:title" content="Farpy Benchmark Leaderboard" />
+  <meta property="og:description" content="Real submitted Farpy Benchmark results ranked by score." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://farpy.com/benchmark/leaderboard" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Farpy Benchmark Leaderboard" />
+  <meta name="twitter:description" content="Real submitted Farpy Benchmark results ranked by score." />
+  <script type="application/ld+json" id="benchmark-jsonld">{"@context":"https://schema.org","@type":"WebPage","name":"Farpy Benchmark Leaderboard","url":"https://farpy.com/benchmark/leaderboard","description":"Real submitted Farpy Benchmark results ranked by score.","mainEntity":{"@type":"ItemList","name":"Farpy Benchmark Leaderboard","itemListElement":[]}}</script>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#050706;color:#f7f1d1}
+    body{margin:0;padding:32px}
+    main{max-width:980px;margin:0 auto}
+    .shell{border:1px solid #3b3825;border-radius:18px;padding:24px;background:#101311}
+    h1{margin:0 0 6px;font-size:32px}
+    .sub{color:#b9d8c6;margin:0 0 18px}.links{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+    a{color:#ffe46b}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+    .card{border:1px solid #2a302b;border-radius:12px;padding:14px;background:#151917}
+    .k{font-size:11px;letter-spacing:.14em;color:#b9d8c6;text-transform:uppercase}
+    .v{font-size:24px;font-weight:800;color:#ffe46b;margin-top:4px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{padding:10px;border-bottom:1px solid #252b27;text-align:left;font-size:14px;vertical-align:top}
+    th{font-size:11px;letter-spacing:.14em;color:#b9d8c6;text-transform:uppercase}
+    .right{text-align:right}.muted{color:#b9d8c6}.err{color:#ffb4a8}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+    button{border:1px solid #403a20;background:#f0cc5b;color:#111;padding:10px 14px;border-radius:10px;font-weight:800;cursor:pointer}
+    @media(max-width:720px){body{padding:14px}.stats{grid-template-columns:1fr}th,td{font-size:12px;padding:8px}.hide-sm{display:none}}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="shell">
+      <h1>Farpy Benchmark Leaderboard</h1>
+      <p class="sub">Real submitted benchmark results only. No fake ranks.</p>
+      <p class="links"><a href="/benchmark/latest">Latest</a><a href="/benchmark/search">Search</a><a href="/benchmark/">Benchmark home</a></p>
+
+      <div class="stats">
+        <div class="card"><div class="k">Submissions</div><div class="v" id="total">unknown</div></div>
+        <div class="card"><div class="k">Top Score</div><div class="v" id="topScore">unknown</div></div>
+        <div class="card"><div class="k">Median Score</div><div class="v" id="median">unknown</div></div>
+      </div>
+
+      <button id="refresh">Refresh</button>
+      <p id="status" class="muted">Loading...</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Result</th>
+            <th>GPU</th>
+            <th class="right hide-sm">VRAM</th>
+            <th class="right">Score</th>
+            <th class="right">Render</th>
+            <th class="hide-sm">Device</th>
+            <th class="hide-sm">Submitted</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="8" class="muted">No data loaded.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = localStorage.getItem("farpy_leaderboard_api_base") || "/node/v1/leaderboard";
+    const unknown = (value) => value === null || value === undefined || value === "" ? "unknown" : value;
+    const escapeHtml = (value) => String(unknown(value))
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+    const fmt = (value) => Number.isFinite(Number(value)) ? Number(value).toFixed(2).replace(/\.00$/, "") : "unknown";
+    function fmtDate(value){
+      if (!value) return "unknown";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "unknown" : date.toLocaleString();
+    }
+
+    function setJsonLd(data){
+      const el = document.getElementById("benchmark-jsonld");
+      if (el) el.textContent = JSON.stringify(data);
+    }
+
+    async function load(){
+      const status = document.getElementById("status");
+      const body = document.getElementById("rows");
+      status.className = "muted";
+      status.textContent = "Loading real leaderboard data...";
+
+      try {
+        const [topRes, statsRes] = await Promise.all([
+          fetch(`${API_BASE}/top`, { cache: "no-store" }),
+          fetch(`${API_BASE}/stats`, { cache: "no-store" })
+        ]);
+        if (!topRes.ok || !statsRes.ok) throw new Error("api_unavailable");
+
+        const top = await topRes.json();
+        const stats = await statsRes.json();
+        const rows = Array.isArray(top.rows) ? top.rows : [];
+
+        document.getElementById("total").textContent = unknown(stats.total_submissions ?? rows.length);
+        document.getElementById("topScore").textContent = fmt(stats.top_score);
+        document.getElementById("median").textContent = fmt(stats.median_score);
+        setJsonLd({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: "Farpy Benchmark Leaderboard",
+          url: "https://farpy.com/benchmark/leaderboard",
+          description: "Real submitted Farpy Benchmark results ranked by score.",
+          mainEntity: {
+            "@type": "ItemList",
+            name: "Farpy Benchmark Leaderboard",
+            itemListElement: rows.map((r, index) => {
+              const item = {
+                "@type": "ListItem",
+                position: r.rank || index + 1,
+                name: `${unknown(r.gpu || r.gpu_name)} score ${unknown(r.score)}`,
+              };
+              if (r.result_id) item.url = `https://farpy.com/benchmark/result/${encodeURIComponent(r.result_id)}`;
+              return item;
+            }),
+          },
+        });
+
+        body.innerHTML = rows.length ? rows.map((r, i) => {
+          const resultId = r.result_id || "";
+          const gpuSlug = r.gpu_slug || "";
+          const resultCell = resultId ? `<a class="mono" href="/benchmark/result/${encodeURIComponent(resultId)}">${escapeHtml(resultId)}</a>` : "unknown";
+          const gpuName = r.gpu || r.gpu_name || "unknown";
+          const gpuCell = gpuSlug ? `<a href="/benchmark/gpu/${encodeURIComponent(gpuSlug)}">${escapeHtml(gpuName)}</a>` : escapeHtml(gpuName);
+          return `<tr>
+            <td>#${escapeHtml(r.rank ?? i + 1)}</td>
+            <td>${resultCell}</td>
+            <td>${gpuCell}</td>
+            <td class="right hide-sm">${escapeHtml(r.vram_gb)} GB</td>
+            <td class="right"><strong>${escapeHtml(fmt(r.score))}</strong></td>
+            <td class="right">${escapeHtml(fmt(r.render_seconds))}s</td>
+            <td class="hide-sm">${escapeHtml(r.render_device)}</td>
+            <td class="hide-sm">${escapeHtml(fmtDate(r.submitted_at || r.created_at || r.timestamp))}</td>
+          </tr>`;
+        }).join("") : '<tr><td colspan="8" class="muted">No submissions yet.</td></tr>';
+
+        status.textContent = "Updated from real API.";
+      } catch {
+        status.className = "err";
+        status.textContent = "Leaderboard unavailable.";
+        body.innerHTML = '<tr><td colspan="8" class="muted">No fake fallback data.</td></tr>';
+      }
+    }
+
+    document.getElementById("refresh").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>

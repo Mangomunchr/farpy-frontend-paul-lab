@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://farpy.com/benchmark/</loc>
+    <lastmod>2026-07-01T22:36:42.572Z</lastmod>
+  </url>
+  <url>
+    <loc>https://farpy.com/benchmark/api</loc>
+    <lastmod>2026-07-01T22:36:42.572Z</lastmod>
+  </url>
+  <url>
+    <loc>https://farpy.com/benchmark/compare</loc>
+    <lastmod>2026-07-01T22:36:42.572Z</lastmod>
+  </url>
+  <url>
+    <loc>https://farpy.com/benchmark/gpu</loc>
+    <lastmod>2026-07-01T22:36:42.572Z</lastmod>
+  </url>
+  <url>
+    <loc>https://farpy.com/benchmark/leaderboard</loc>
+    <lastmod>2026-06-25T08:12:39.644Z</lastmod>
+  </url>
+  <url>
+    <loc>https://farpy.com/benchmark/latest</loc>
+    <lastmod>2026-06-25T08:12:39.644Z</lastmod>
+  </url>
+  <url>
+    <loc>https://farpy.com/benchmark/result</loc>
+    <lastmod>2026-07-01T22:36:42.572Z</lastmod>
+  </url>
+  <url>
+    <loc>https://farpy.com/benchmark/search</loc>
+    <lastmod>2026-06-25T08:12:39.644Z</lastmod>
+  </url>
+</urlset>

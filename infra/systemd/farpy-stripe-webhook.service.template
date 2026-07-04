@@ -1,0 +1,16 @@
+[Unit]
+Description=Farpy Stripe Webhook
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/lib/farpy/ops-topup
+ExecStart=/usr/bin/python3 /var/lib/farpy/ops-topup/stripe_webhook.py
+Restart=always
+RestartSec=2
+EnvironmentFile=-/etc/farpy/stripe.env
+EnvironmentFile=-/etc/farpy/wallet.env
+
+[Install]
+WantedBy=multi-user.target
+

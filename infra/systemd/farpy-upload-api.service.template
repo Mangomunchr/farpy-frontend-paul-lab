@@ -1,0 +1,17 @@
+[Unit]
+Description=Farpy Upload API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/farpy
+ExecStart=/usr/bin/python3 /usr/local/bin/farpy-upload-api.py
+Restart=always
+RestartSec=2
+User=root
+EnvironmentFile=-/etc/farpy/secrets.env
+EnvironmentFile=-/etc/farpy/upload.env
+
+[Install]
+WantedBy=multi-user.target
+

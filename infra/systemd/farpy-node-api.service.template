@@ -1,0 +1,18 @@
+[Unit]
+Description=Farpy Node API
+After=network.target
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/local/bin/farpy-reconcile
+ExecStart=/usr/bin/python3 /opt/farpy-node-api/server.py
+Restart=always
+RestartSec=1
+LimitNOFILE=1048576
+LimitNPROC=32768
+EnvironmentFile=-/etc/farpy/node-api.env
+EnvironmentFile=-/etc/farpy/stripe.env
+
+[Install]
+WantedBy=multi-user.target
+
