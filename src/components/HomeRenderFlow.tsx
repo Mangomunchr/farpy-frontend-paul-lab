@@ -2,12 +2,11 @@
 
 import { useRef, useState } from "react";
 import { WEB_RENDER_API_BASE } from "@/lib/webRenderApi";
+import { detectBlendFrames } from "@/lib/blendFrames";
 
 type Queue = "normal" | "fast";
 type Renderer = "blender" | "octane";
-type OutputMode = "still" | "animation";
 
-const DEFAULT_ANIMATION_END = 120;
 const MIN_FRAME = 1;
 const MAX_FRAMES = 100000;
 const RENDERERS = {
@@ -33,73 +32,79 @@ function inferRenderer(fileName: string): Renderer | null {
   return null;
 }
 
+function formatSize(bytes: number) {
+  if (!bytes) return "scene file";
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+type FrameInfo = {
+  start: number;
+  end: number;
+  count: number;
+  detected: boolean;
+};
+
+const SINGLE_FRAME: FrameInfo = { start: MIN_FRAME, end: MIN_FRAME, count: 1, detected: false };
+
 export default function HomeRenderFlow() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [fileName, setFileName] = useState("");
   const [renderer, setRenderer] = useState<Renderer>("blender");
   const [queue, setQueue] = useState<Queue>("normal");
-  const [outputMode, setOutputMode] = useState<OutputMode>("still");
-  const [frameStart, setFrameStart] = useState(MIN_FRAME);
-  const [frameEnd, setFrameEnd] = useState(DEFAULT_ANIMATION_END);
+  const [frames, setFrames] = useState<FrameInfo>(SINGLE_FRAME);
+  const [detecting, setDetecting] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
 
   const rate = QUEUES[queue].rate;
-  const selectedRenderer = RENDERERS[renderer];
-  const isOctane = renderer === "octane";
-  const normalizedStart = clampFrame(frameStart);
-  const normalizedEnd = Math.max(normalizedStart, clampFrame(frameEnd));
-  const effectiveFrameStart = isOctane ? MIN_FRAME : normalizedStart;
-  const effectiveFrameEnd = isOctane || outputMode === "still" ? effectiveFrameStart : normalizedEnd;
-  const effectiveFrames = effectiveFrameEnd - effectiveFrameStart + 1;
-  const total = effectiveFrames * rate;
-  const packageTypeLabel = `${selectedRenderer.label} package`;
+  const total = frames.count * rate;
 
-  const chooseFile = (file: File | null) => {
-    if (!file) return;
-    const inferredRenderer = inferRenderer(file.name);
+  const chooseFile = async (nextFile: File | null) => {
+    if (!nextFile) return;
+    const inferredRenderer = inferRenderer(nextFile.name);
     if (!inferredRenderer) {
       setError("Unsupported package type. Please upload a .blend or .orbx file.");
       setFile(null);
-      setFileName("");
       return;
     }
 
-    setRenderer(inferredRenderer);
-    if (inferredRenderer === "octane") {
-      setOutputMode("still");
-      setFrameStart(MIN_FRAME);
-      setFrameEnd(MIN_FRAME);
-    }
     setError("");
-    setFile(file);
-    setFileName(file.name);
-  };
+    setFile(nextFile);
+    setRenderer(inferredRenderer);
 
-  const changeOutputMode = (next: OutputMode) => {
-    if (isOctane && next === "animation") return;
-    setOutputMode(next);
-    if (next === "still") {
-      setFrameEnd(frameStart);
-    } else if (frameEnd < frameStart) {
-      setFrameEnd(frameStart);
+    if (inferredRenderer === "octane") {
+      // Octane public alpha is still-only: always one frame.
+      setFrames(SINGLE_FRAME);
+      return;
+    }
+
+    setDetecting(true);
+    setFrames(SINGLE_FRAME);
+    const range = await detectBlendFrames(nextFile);
+    setDetecting(false);
+    if (range && range.frameCount >= 1 && range.frameCount <= MAX_FRAMES) {
+      setFrames({
+        start: Math.max(MIN_FRAME, range.frameStart),
+        end: Math.max(MIN_FRAME, range.frameEnd),
+        count: range.frameCount,
+        detected: true,
+      });
+    } else {
+      setFrames(SINGLE_FRAME);
     }
   };
 
-  const updateFrameStart = (value: number) => {
-    if (isOctane) return;
-    const next = clampFrame(value);
-    setFrameStart(next);
-    if (outputMode === "animation" && frameEnd < next) {
-      setFrameEnd(next);
-    }
+  const updateFrameCount = (value: number) => {
+    const count = clampFrame(value);
+    setFrames({ start: MIN_FRAME, end: count, count, detected: false });
   };
 
-  const updateFrameEnd = (value: number) => {
-    if (isOctane) return;
-    const next = clampFrame(value);
-    setFrameEnd(Math.max(frameStart, next));
+  const resetFile = () => {
+    setFile(null);
+    setFrames(SINGLE_FRAME);
+    setError("");
+    if (inputRef.current) inputRef.current.value = "";
   };
 
   const startRender = async () => {
@@ -112,12 +117,13 @@ export default function HomeRenderFlow() {
     setUploading(true);
     setError("");
 
+    const submitFrameStart = inferredRenderer === "octane" ? MIN_FRAME : frames.start;
+    const submitFrameEnd = inferredRenderer === "octane" ? MIN_FRAME : frames.end;
+    const submitFrameCount = submitFrameEnd - submitFrameStart + 1;
+
     const form = new FormData();
     form.append("file", file, file.name);
     form.append("renderer", inferredRenderer);
-    const submitFrameStart = inferredRenderer === "octane" ? MIN_FRAME : effectiveFrameStart;
-    const submitFrameEnd = inferredRenderer === "octane" ? MIN_FRAME : effectiveFrameEnd;
-    const submitFrameCount = submitFrameEnd - submitFrameStart + 1;
     form.append("frame_count", String(submitFrameCount));
     form.append("frame_start", String(submitFrameStart));
     form.append("frame_end", String(submitFrameEnd));
@@ -180,197 +186,148 @@ export default function HomeRenderFlow() {
           <a className="pj-btn pj-btn--blue" href="#dropzone">
             Send package
           </a>
-          <a className="pj-btn" href="/downloads">
+          <a className="pj-btn pj-btn--tertiary" href="/downloads">
             Become a render partner
           </a>
         </div>
         <p className="fy-estimator-trust">
-          Rendars send packages. NodeMunchers earn by running render partners.
+          3D artists send render packages. GPU owners earn by completing them.
         </p>
-        <div className="fy-first-minute-grid" aria-label="How Farpy works">
-          <article className="fy-first-minute-card">
-            <span aria-hidden="true">1</span>
-            <strong>Upload</strong>
-            <p>Choose a Blender or Octane package.</p>
-          </article>
-          <article className="fy-first-minute-card">
-            <span aria-hidden="true">2</span>
-            <strong>Rendering</strong>
-            <p>A render partner processes your package.</p>
-          </article>
-          <article className="fy-first-minute-card">
-            <span aria-hidden="true">3</span>
-            <strong>Download + Receipt</strong>
-            <p>Get a ZIP and verified SHA-256 receipt.</p>
-          </article>
-        </div>
-        <div className="fy-trust-strip" aria-label="Farpy trust checks">
-          <a href="/pricing">Receipt-backed</a>
-          <a href="/docs">SHA-256 verified</a>
-          <a href="/refunds">Wallet tracked</a>
-          <a href="/faq">No subscription</a>
-        </div>
       </section>
 
       <section className="fy-estimator" id="pricing" aria-label="Package label flow">
-        <div className="fy-estimator-step">
-          <span className="fy-estimator-label">Package</span>
-          <label
-            className={`fy-upload-zone${fileName ? " has-file" : ""}`}
-            id="dropzone"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              chooseFile(event.dataTransfer.files[0]);
-            }}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".blend,.orbx"
-              onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
-            />
-            <span className="fy-upload-kicker">Send package</span>
-            <span className="fy-upload-types">Drop a .blend or .orbx package here.</span>
-            <span className="fy-upload-action">Choose package</span>
-          </label>
-          {fileName && (
-            <div className="fy-selected-package" aria-live="polite">
-              <span>Selected</span>
-              <strong>{fileName}</strong>
-              <small>{packageTypeLabel}</small>
-            </div>
-          )}
-          {error && (
-            <p className="fy-error" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
-
-        <div className="fy-estimator-step">
-          <span className="fy-estimator-label">Output</span>
-          <div className="fy-queue-grid" role="radiogroup" aria-label="Output type">
-            <label className="fy-queue-card">
+        {!file ? (
+          <div className="fy-estimator-step">
+            <span className="fy-estimator-label">Package</span>
+            <label
+              className="fy-upload-zone"
+              id="dropzone"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                void chooseFile(event.dataTransfer.files[0]);
+              }}
+            >
               <input
-                type="radio"
-                name="home-output"
-                checked={outputMode === "still"}
-                onChange={() => changeOutputMode("still")}
+                ref={inputRef}
+                type="file"
+                accept=".blend,.orbx"
+                onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
               />
-              <span>Still image</span>
-              <small>One frame</small>
-            </label>
-            <label className="fy-queue-card">
-              <input
-                type="radio"
-                name="home-output"
-                checked={!isOctane && outputMode === "animation"}
-                disabled={isOctane}
-                onChange={() => changeOutputMode("animation")}
-              />
-              <span>Animation</span>
-              <small>{isOctane ? "Blender only in public alpha" : "Choose a frame range"}</small>
+              <span className="fy-upload-kicker">Send package</span>
+              <span className="fy-upload-types">Drop a .blend or .orbx package here.</span>
+              <span className="fy-upload-action">Choose package</span>
+              <span className="fy-upload-rate">From {money(QUEUES.normal.rate)} per frame &middot; pay only for what renders</span>
             </label>
           </div>
-        </div>
+        ) : (
+          <div className="fy-job" id="dropzone" aria-live="polite">
+            <section className="pj-card">
+              <div className="pj-card__body">
+                <div className="fy-file">
+                  <div className="fy-file__meta">
+                    <span className="fy-file__name">{file.name}</span>
+                    <span className="fy-file__size">
+                      {formatSize(file.size)} &middot; {RENDERERS[renderer].label} package
+                    </span>
+                  </div>
+                  <button className="pj-btn pj-btn--tertiary fy-file__change" type="button" onClick={resetFile}>
+                    Change
+                  </button>
+                </div>
 
-        <div className="fy-estimator-step">
-          <span className="fy-estimator-label">Frames</span>
-          {outputMode === "still" ? (
-            <label className="fy-frame-field" htmlFor="frame-start">
-              <span className="fy-frame-sub-label">Frame</span>
-              <input
-                id="frame-start"
-                className="fy-frame-count"
-                type="number"
-                min={MIN_FRAME}
-                max={MAX_FRAMES}
-                step={1}
-                value={effectiveFrameStart}
-                onChange={(event) => updateFrameStart(Number(event.target.value))}
-                onBlur={(event) => updateFrameStart(Number(event.target.value))}
-                disabled={isOctane}
-              />
-              {isOctane && <small className="fy-frame-helper">Octane public alpha is still-only: 1 frame.</small>}
-            </label>
-          ) : (
-            <div className="fy-frame-range" aria-label="Animation frame range">
-              <label>
-                <span>From</span>
-                <input
-                  className="fy-frame-input"
-                  type="number"
-                  min={MIN_FRAME}
-                  max={MAX_FRAMES}
-                  step={1}
-                  value={effectiveFrameStart}
-                  onChange={(event) => updateFrameStart(Number(event.target.value))}
-                  onBlur={(event) => updateFrameStart(Number(event.target.value))}
-                />
-              </label>
-              <label>
-                <span>To</span>
-                <input
-                  className="fy-frame-input"
-                  type="number"
-                  min={MIN_FRAME}
-                  max={MAX_FRAMES}
-                  step={1}
-                  value={effectiveFrameEnd}
-                  onChange={(event) => updateFrameEnd(Number(event.target.value))}
-                  onBlur={(event) => updateFrameEnd(Number(event.target.value))}
-                />
-              </label>
-              <p className="fy-frame-helper">
-                {effectiveFrames.toLocaleString()} frame{effectiveFrames === 1 ? "" : "s"}
-              </p>
-            </div>
-          )}
-        </div>
+                <hr className="pj-card__divider" />
 
-        <div className="fy-estimator-step">
-          <span className="fy-estimator-label">Delivery</span>
-          <div className="fy-queue-grid" role="radiogroup" aria-label="Delivery speed">
-            {Object.entries(QUEUES).map(([key, option]) => (
-              <label className="fy-queue-card" key={key}>
-                <input
-                  type="radio"
-                  name="home-queue"
-                  checked={queue === key}
-                  onChange={() => setQueue(key as Queue)}
-                />
-                <span>{option.label}</span>
-                <small>{option.desc}</small>
-                <strong>{money(option.rate)}/frame</strong>
-              </label>
-            ))}
+                <div className="fy-tiers" role="radiogroup" aria-label="Delivery speed">
+                  {Object.entries(QUEUES).map(([key, option]) => (
+                    <label className="fy-tier" key={key}>
+                      <input
+                        className="pj-radio"
+                        type="radio"
+                        name="home-queue"
+                        checked={queue === key}
+                        onChange={() => setQueue(key as Queue)}
+                      />
+                      <span className="fy-tier__text">
+                        <span className="fy-tier__name">{option.label}</span>
+                        <span className="fy-tier__desc">{option.desc}</span>
+                        <span className="fy-tier__price">{money(option.rate)} / frame</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                <hr className="pj-card__divider" />
+
+                <div className="fy-quote">
+                  <div className="fy-quote__row">
+                    <span>Frames detected</span>
+                    {detecting ? (
+                      <span>Reading scene&hellip;</span>
+                    ) : frames.detected || renderer === "octane" ? (
+                      <span>{frames.count.toLocaleString()}</span>
+                    ) : (
+                      <input
+                        className="fy-frame-input fy-frame-input--quote"
+                        type="number"
+                        aria-label="Frame count"
+                        min={MIN_FRAME}
+                        max={MAX_FRAMES}
+                        step={1}
+                        value={frames.count}
+                        onChange={(event) => updateFrameCount(Number(event.target.value))}
+                        onBlur={(event) => updateFrameCount(Number(event.target.value))}
+                      />
+                    )}
+                  </div>
+                  {frames.detected && frames.count > 1 && (
+                    <div className="fy-quote__row">
+                      <span>Range</span>
+                      <span>
+                        {frames.start.toLocaleString()}&ndash;{frames.end.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="fy-quote__row">
+                    <span>Speed</span>
+                    <span>{QUEUES[queue].label}</span>
+                  </div>
+                  <div className="fy-quote__row">
+                    <span>Rate</span>
+                    <span>{money(rate)} / frame</span>
+                  </div>
+                  <div className="fy-quote__row fy-quote__row--total">
+                    <span>Your price</span>
+                    <span className="fy-quote__total">{money(total)}</span>
+                  </div>
+                </div>
+              </div>
+              <footer className="pj-card__footer">
+                <p className="pj-card__footer-text">
+                  Failed frames cost $0, so this is the most you would ever pay.
+                </p>
+                <div className="pj-card__actions">
+                  <button
+                    className="pj-btn pj-btn--blue"
+                    type="button"
+                    disabled={uploading || detecting}
+                    onClick={() => {
+                      void startRender();
+                    }}
+                  >
+                    {uploading ? "Sending package..." : "Send package"}
+                  </button>
+                </div>
+              </footer>
+            </section>
           </div>
-        </div>
+        )}
 
-        <div className="fy-estimator-step fy-price-panel">
-          <span className="fy-price-label">Summary</span>
-          <span className="fy-price-formula">
-            {effectiveFrames.toLocaleString()} frame{effectiveFrames === 1 ? "" : "s"}
-          </span>
-          <span className="fy-price-formula">{QUEUES[queue].label}</span>
-          <strong className="fy-price-total">{money(total)}</strong>
-        </div>
-
-        <button
-          className="pj-btn pj-btn--blue fy-start-button"
-          type="button"
-          disabled={!file || uploading}
-          onClick={() => {
-            void startRender();
-          }}
-        >
-          {uploading ? "Sending package..." : file ? "Send package" : "Choose package to continue"}
-        </button>
-
-        <p className="fy-estimator-trust">
-          Receipt-backed | SHA-256 verified | No subscription
-        </p>
+        {error && (
+          <p className="fy-error" role="alert">
+            {error}
+          </p>
+        )}
 
         <div className="fy-after-send" aria-label="After you send">
           <span>After you send:</span>
@@ -382,10 +339,25 @@ export default function HomeRenderFlow() {
           </ol>
         </div>
       </section>
+
+      <section className="pj-card fy-privacy" aria-label="File privacy">
+        <div className="pj-card__body fy-privacy__body">
+          <svg
+            className="fy-privacy__icon"
+            aria-hidden="true"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13ZM8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16Zm-1-5a1 1 0 1 1 2 0 1 1 0 0 1-2 0Zm.25-6.25a.75.75 0 0 1 1.5 0v3.5a.75.75 0 0 1-1.5 0v-3.5Z"
+            />
+          </svg>
+          <p className="fy-privacy__text">
+            <strong>File Privacy:</strong> Uploaded .blend and .orbx files are not sold and are not used for AI training, and are deleted after you download.
+          </p>
+        </div>
+      </section>
     </main>
   );
 }
-
-
-
-

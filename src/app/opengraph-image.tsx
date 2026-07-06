@@ -24,8 +24,8 @@ export default function OpengraphImage() {
           justifyContent: "space-between",
           padding: "80px",
           background:
-            "radial-gradient(1100px 600px at 78% 18%, rgba(229,57,43,0.30), transparent 60%), #0E0F12",
-          color: "#EDEDEA",
+            "radial-gradient(1100px 600px at 78% 18%, rgba(252,109,38,0.28), transparent 60%), #171321",
+          color: "#ececef",
           fontFamily: "sans-serif",
         }}
       >
@@ -37,8 +37,8 @@ export default function OpengraphImage() {
                 width: "26px",
                 height: "26px",
                 borderRadius: "999px",
-                background: "#E5392B",
-                boxShadow: "0 0 40px 8px rgba(229,57,43,0.7)",
+                background: "#fc6d26",
+                boxShadow: "0 0 40px 8px rgba(252,109,38,0.7)",
               }}
             />
             <div style={{ fontSize: "40px", fontWeight: 700, letterSpacing: "-0.02em" }}>
@@ -73,7 +73,7 @@ export default function OpengraphImage() {
           >
             Render Blender on real GPUs.
           </div>
-          <div style={{ display: "flex", fontSize: "82px", fontWeight: 700, letterSpacing: "-0.03em", color: "#E5392B" }}>
+          <div style={{ display: "flex", fontSize: "82px", fontWeight: 700, letterSpacing: "-0.03em", color: "#fc6d26" }}>
             Pay by the frame.
           </div>
         </div>

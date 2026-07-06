@@ -28,7 +28,20 @@ const LIGHTNING_ENABLED = process.env.FARPY_LIGHTNING_ENABLED === "true";
 
 const formatCents = (value?: number | null) => `$${((value || 0) / 100).toFixed(2)}`;
 
-export default function TopUpPage() {
+// Dev-only preview: matches AccountPage's /account?demo=1 mode.
+const isDemoMode = () =>
+  process.env.NODE_ENV === "development" &&
+  typeof window !== "undefined" &&
+  (/demo/.test(window.location.search) || /demo/.test(window.location.hash));
+
+const DEMO_WALLET: WalletBalance = { ok: true, balance_cents: 2890, email: "demo@farpy.com" };
+
+type TopUpPageProps = {
+  /** Render only the top-up card (no page shell) inside another page. */
+  embedded?: boolean;
+};
+
+export default function TopUpPage({ embedded = false }: TopUpPageProps = {}) {
   const [wallet, setWallet] = useState<WalletBalance | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyAmount, setBusyAmount] = useState<number | null>(null);
@@ -37,19 +50,15 @@ export default function TopUpPage() {
   const [paymentMethod, setPaymentMethod] = useState<"card" | "bitcoin" | "lightning">("card");
   const [error, setError] = useState("");
 
-  const refreshBalance = async () => {
-    setLoading(true);
-    fetch("/v1/wallet/balance", { credentials: "include", cache: "no-store" })
-      .then(async (res) => ({ res, json: (await res.json().catch(() => ({}))) as WalletBalance }))
-      .then(({ res, json }) => {
-        setWallet(res.ok ? json : { error: json.error || `status_${res.status}` });
-      })
-      .catch(() => setWallet({ error: "wallet_unavailable" }))
-      .finally(() => setLoading(false));
-  };
-
   useEffect(() => {
     let alive = true;
+    if (isDemoMode()) {
+      setWallet(DEMO_WALLET);
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
     fetch("/v1/wallet/balance", { credentials: "include", cache: "no-store" })
       .then(async (res) => ({ res, json: (await res.json().catch(() => ({}))) as WalletBalance }))
       .then(({ res, json }) => {
@@ -119,15 +128,9 @@ export default function TopUpPage() {
   };
   const signedIn = wallet?.ok || Number.isInteger(wallet?.balance_cents);
 
-  return (
-    <main className="topup render-money-page">
-      <section className="wrap render-flow-page money-compact">
-        <div className="render-flow-head">
-          <h1>Top up wallet</h1>
-          <p>Add wallet balance for future render packages. Start with a small package.</p>
-        </div>
-
-        <section className="render-job-card" aria-label="Wallet top up">
+  const topupCard = (
+        <section className="render-job-card" aria-label="Wallet top up" id="topup">
+          {embedded ? <h2 className="acct-card-title">Top up</h2> : null}
           {loading ? (
             <p className="render-note">Checking account...</p>
           ) : signedIn ? (
@@ -227,20 +230,34 @@ export default function TopUpPage() {
                 </div>
               )}
               {error ? <p className="auth-err" role="alert">{error}</p> : null}
-              <Link className="acct-receipt-link" href="/account" prefetch={false}>
-                Back to Account
-              </Link>
+              {!embedded ? (
+                <Link className="acct-receipt-link" href="/account" prefetch={false}>
+                  Back to Account
+                </Link>
+              ) : null}
             </>
           ) : (
             <>
               <p className="render-note">Sign in to top up your wallet balance for render packages. Best for previews, tests, and short jobs today.</p>
               <p className="render-note">Card and Bitcoin topups are available after sign in.</p>
-              <Link className="pj-btn pj-btn--blue fy-start-button" href="/signin?next=/topup" prefetch={false}>
+              <Link className="pj-btn pj-btn--blue fy-start-button" href={embedded ? "/signin?next=/account" : "/signin?next=/topup"} prefetch={false}>
                 Sign in
               </Link>
             </>
           )}
         </section>
+  );
+
+  if (embedded) return topupCard;
+
+  return (
+    <main className="topup render-money-page">
+      <section className="wrap render-flow-page money-compact">
+        <div className="render-flow-head">
+          <h1>Top up wallet</h1>
+          <p>Add wallet balance for future render packages. Start with a small package.</p>
+        </div>
+        {topupCard}
       </section>
     </main>
   );

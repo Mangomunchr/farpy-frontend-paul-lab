@@ -22,7 +22,7 @@ export default function ContactPage() {
               <h1 className="legal-title">Contact</h1>
               <p className="legal-lede">
                 Email <a href="mailto:support@farpy.com">support@farpy.com</a> for render,
-                receipt, wallet, or payment help.
+                receipt, wallet, or payment help. We reply within 1 business day.
               </p>
             </header>
 

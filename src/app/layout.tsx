@@ -12,31 +12,22 @@ import {
 } from "@/lib/site";
 import "./globals.css";
 
-// Display Ã¢â‚¬â€ Clash Display (Fontshare), self-hosted variable file. An industrial,
-// characterful grotesque: heavy weights + tight negative tracking carry the
-// "render farm", not the generic geometric sans the old Bricolage cluster reads as.
-const clash = localFont({
-  src: "./fonts/ClashDisplay-Variable.woff2",
-  weight: "400 700",
+// GitLab Sans (Inter-based) — the Pajamas design system UI face, self-hosted
+// variable file from @gitlab/fonts.
+const gitlabSans = localFont({
+  src: "./fonts/GitLabSans.woff2",
+  weight: "100 900",
   display: "swap",
-  variable: "--font-clash",
+  variable: "--font-gitlab-sans",
   adjustFontFallback: false,
 });
 
-const hanken = localFont({
-  src: "./fonts/ClashDisplay-Variable.woff2",
-  weight: "400 700",
+// GitLab Mono (JetBrains Mono-based) — data voice: prices, hashes, counters.
+const gitlabMono = localFont({
+  src: "./fonts/GitLabMono.woff2",
+  weight: "100 900",
   display: "swap",
-  variable: "--font-hanken",
-  adjustFontFallback: false,
-});
-
-// Data / proof voice Ã¢â‚¬â€ Geist Mono. Prices, frame counts, hashes, sample counters.
-const geistMono = localFont({
-  src: "./fonts/ClashDisplay-Variable.woff2",
-  weight: "400 700",
-  display: "swap",
-  variable: "--font-geist-mono",
+  variable: "--font-gitlab-mono",
   adjustFontFallback: false,
 });
 
@@ -95,13 +86,13 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F1F2F4" },
-    { media: "(prefers-color-scheme: dark)", color: "#0E0F12" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#171321" },
   ],
 };
 
 // Sitewide structured data: who Farpy is (Organization) and the site itself
-// (WebSite). Emitted once in the root layout so it appears on every page Ã¢â‚¬â€
+// (WebSite). Emitted once in the root layout so it appears on every page —
 // the anchor that lets Google and AI engines attribute facts to the brand.
 const orgId = `${SITE_URL}/#organization`;
 const siteLd = [
@@ -112,7 +103,7 @@ const siteLd = [
     name: SITE_NAME,
     url: SITE_URL,
     description: SITE_DESCRIPTION,
-    // `logo` intentionally omitted until the real brand logo lands Ã¢â‚¬â€ add a
+    // `logo` intentionally omitted until the real brand logo lands — add a
     // square PNG (e.g. /icon.png) here then for knowledge-panel / rich results.
     sameAs: [] as string[],
   },
@@ -136,7 +127,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${clash.variable} ${hanken.variable} ${geistMono.variable}`}
+      className={`${gitlabSans.variable} ${gitlabMono.variable}`}
       suppressHydrationWarning
     >
       <body>
@@ -157,4 +148,3 @@ export default function RootLayout({
     </html>
   );
 }
-

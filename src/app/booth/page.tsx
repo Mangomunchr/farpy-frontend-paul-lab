@@ -52,7 +52,7 @@ export default function BoothPage() {
               <span className="booth-banner-cable booth-banner-cable-right" aria-hidden="true" />
               <Link className="booth-logo" href="/" aria-label="Farpy home" prefetch={false}>
                 <span className="booth-logo-mark" aria-hidden="true">F</span>
-                <span id="booth-title">FARPY</span>
+                <h1 id="booth-title">FARPY</h1>
               </Link>
               <p>Distributed Blender &amp; Octane Rendering</p>
               <span className="booth-open-badge">Always Open.</span>

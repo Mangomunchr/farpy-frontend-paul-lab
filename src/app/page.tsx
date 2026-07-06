@@ -25,7 +25,7 @@ const serviceLd = {
     offers: [
       {
         "@type": "Offer",
-        name: "Normal lane",
+        name: "Standard lane",
         description: "Standard render lane. Billed only for frames that finish.",
         price: PRICE_NORMAL,
         priceCurrency: "USD",
@@ -33,8 +33,8 @@ const serviceLd = {
       },
       {
         "@type": "Offer",
-        name: "Express lane",
-        description: "Express lane for sooner frames where available. Optional. Same output.",
+        name: "Priority lane",
+        description: "Priority lane for sooner frames where available. Optional. Same output.",
         price: PRICE_FAST,
         priceCurrency: "USD",
         availability: "https://schema.org/InStock",
@@ -43,8 +43,6 @@ const serviceLd = {
   },
 };
 
-const steps = ["Upload package", "Render Partners process it", "Download package + receipt"];
-
 const trust = [
   "✓ Receipt-backed",
   "✓ SHA-256 verified",
@@ -52,10 +50,54 @@ const trust = [
   "✓ No subscription",
 ];
 
-const limits = [
-  "Best for small render packages today.",
-  "Built for Blender and Octane previews and tests.",
-  "Test before sending larger work.",
+const pillarIcon = {
+  shield: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-3.5 8-10V5.5L12 2 4 5.5V12c0 6.5 8 10 8 10Z" />
+      <path d="m9 11.5 2 2 4-4.5" />
+    </svg>
+  ),
+  lock: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" />
+      <path d="M7.5 10.5V7.75a4.5 4.5 0 0 1 9 0v2.75" />
+    </svg>
+  ),
+  receipt: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 2.5h14V21l-2.4-1.5L14.2 21l-2.2-1.5L9.8 21l-2.4-1.5L5 21V2.5Z" />
+      <path d="m9 10.5 2 2 4-4.5" />
+    </svg>
+  ),
+  dollar: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2.5v19" />
+      <path d="M16.5 6.5h-6.75a2.75 2.75 0 0 0 0 5.5h4.5a2.75 2.75 0 0 1 0 5.5H7" />
+    </svg>
+  ),
+};
+
+const pillars = [
+  {
+    icon: pillarIcon.shield,
+    title: "Your files stay private",
+    text: "Your .blend or .orbx is never sold and never used to train AI. We delete it the moment your download finishes - no archived copy, no exceptions.",
+  },
+  {
+    icon: pillarIcon.lock,
+    title: "Encrypted in transit",
+    text: "Every upload and download travels over TLS. Your scene reaches the GPUs encrypted, and your finished frames come back the same way.",
+  },
+  {
+    icon: pillarIcon.receipt,
+    title: "A receipt on every render",
+    text: "Each job returns a signed receipt - frame count, GPU, render time, a verifiable hash - so you can confirm it really ran, not just trust a status bar.",
+  },
+  {
+    icon: pillarIcon.dollar,
+    title: "Failed frames are free",
+    text: "If a frame errors out it's refunded to your balance automatically. You only pay for frames that finish clean. A broken render costs you $0.",
+  },
 ];
 
 const faqs = [
@@ -63,7 +105,7 @@ const faqs = [
   ["What happens if a frame fails?", "You are not charged for it. You only pay for frames that finish, and anything that fails is refunded to your balance."],
   ["What files can I render?", "Blender .blend files and Octane .orbx packages. Send one in and Farpy reads the scene to count frames and quote the exact price before anything runs."],
   ["How long does a render take?", "It depends on the scene. Farpy shows package progress in the workspace and keeps the receipt after delivery."],
-  ["What's the difference between Normal and Fast?", "Same render, same output. Fast uses the express lane. Normal is $0.01 per frame, Fast is $0.02 per frame."],
+  ["What's the difference between Standard and Priority?", "Same render, same output. Priority uses the express lane. Standard is $0.01 per frame, Priority is $0.02 per frame."],
   ["Can you render private or adult work?", "Private work: yes. Adult content: case-by-case and must comply with applicable laws and our Acceptable Use Policy. Illegal content, exploitative content, or content involving minors is prohibited. Files are retained according to Farpy operational policies."],
   ["How does Farpy handle uploads?", "Farpy uses uploads to quote and run render jobs. Files are retained according to Farpy operational policies, never sold, and not used to train AI."],
 ];
@@ -84,10 +126,6 @@ export default function Home() {
           </div>
           <div className="fy-conversion-grid">
             <article className="pj-card fy-proof-card">
-              <strong>Sample render gallery</strong>
-              <span>Sample render gallery coming after Alpha User #1.</span>
-            </article>
-            <article className="pj-card fy-proof-card">
               <strong>Compare real GPU benchmark results.</strong>
               <a className="fy-proof-link" href="/benchmark">View benchmarks</a>
             </article>
@@ -98,36 +136,41 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="fy-section fy-tight-section" aria-labelledby="how-title">
-          <h2 className="fy-section__title" id="how-title">How it works</h2>
-          <ol className="fy-steps">
-            {steps.map((title, index) => (
-              <li className="fy-step" key={title}>
-                <span className="fy-step__num">0{index + 1}</span>
-                <span className="fy-step__title">{title}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
-
         <section className="fy-section fy-tight-section" aria-labelledby="trust-title">
           <h2 className="fy-section__title" id="trust-title">Trust</h2>
           <div className="fy-trust-grid">
-            {["Receipt-backed", "SHA-256 verified", "Wallet tracked", "No subscription"].map((title) => (
+            {[
+              ["Receipt-backed", "A signed receipt with every package."],
+              ["SHA-256 verified", "Every ZIP ships a verifiable hash."],
+              ["Wallet tracked", "Each charge shows in your balance."],
+              ["No subscription", "Pay per render. Nothing recurring."],
+            ].map(([title, desc]) => (
               <article className="pj-card fy-trust-card" key={title}>
-                <strong>{title}</strong>
+                <h3 className="pj-card__title">{title}</h3>
+                <p className="fy-pillar__text">{desc}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="fy-section fy-tight-section" aria-labelledby="limits-title">
-          <h2 className="fy-section__title" id="limits-title">Best used for</h2>
-          <div className="fy-trust-grid">
-            {limits.map((title) => (
-              <article className="pj-card fy-trust-card" key={title}>
-                <strong>{title}</strong>
-              </article>
+        <section className="fy-section" aria-labelledby="pillars-title">
+          <h2 className="fy-section__title" id="pillars-title">
+            Built so you never have to take our word for it.
+          </h2>
+          <p className="fy-section__sub">
+            Your scene, your frames, your money &mdash; handled with the same care
+            you&rsquo;d want for your own work. Here&rsquo;s exactly what we promise on
+            every job.
+          </p>
+          <div className="fy-pillars">
+            {pillars.map((pillar) => (
+              <section className="pj-card fy-pillar" key={pillar.title}>
+                <div className="pj-card__body">
+                  <span className="fy-pillar__icon" aria-hidden="true">{pillar.icon}</span>
+                  <h3 className="pj-card__title">{pillar.title}</h3>
+                  <p className="fy-pillar__text">{pillar.text}</p>
+                </div>
+              </section>
             ))}
           </div>
         </section>

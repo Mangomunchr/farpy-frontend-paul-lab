@@ -63,15 +63,15 @@ const shortHash = (value: unknown) => {
 };
 
 const statusClass = (status: HealthCheck["status"]) => {
-  if (status === "pass") return "bg-[#E1F1E8] text-[#1F8A52]";
-  if (status === "fail") return "bg-[#FBE7E3] text-[#B82216]";
-  return "bg-[#E3E6EA] text-[#64676F]";
+  if (status === "pass") return "bg-[#ecf4ee] text-[#108548]";
+  if (status === "fail") return "bg-[#fcf1ef] text-[#c02f12]";
+  return "bg-[#ececef] text-[#626168]";
 };
 
 const healthClass = (status?: string) => {
-  if (status === "RED") return "border-[#F2B8B1] bg-[#FBE7E3] text-[#8F140B]";
-  if (status === "YELLOW") return "border-[#F0D28A] bg-[#FFF7DB] text-[#805E00]";
-  if (status === "GREEN") return "border-[#BFE3CC] bg-[#E1F1E8] text-[#1F6F43]";
+  if (status === "RED") return "border-[#fcb5aa] bg-[#fcf1ef] text-[#a32c12]";
+  if (status === "YELLOW") return "border-[#f5d9a8] bg-[#fdf1dd] text-[#995715]";
+  if (status === "GREEN") return "border-[#c3e6cd] bg-[#ecf4ee] text-[#306440]";
   return "border-line bg-paper text-ink-3";
 };
 

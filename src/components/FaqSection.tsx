@@ -7,7 +7,7 @@ export const FAQS = [
   },
   {
     q: "How much does it cost?",
-    a: "Normal renders are $0.01 per frame. Fast renders are $0.02 per frame where the fast queue is available. The quote is shown before the render starts. Start with a small package.",
+    a: "Standard renders are $0.01 per frame. Priority renders are $0.02 per frame where the priority queue is available. The quote is shown before the render starts. Start with a small package.",
   },
   {
     q: "What is the $0.25 signup credit?",

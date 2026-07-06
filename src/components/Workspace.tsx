@@ -227,7 +227,20 @@ function classifyFailure(job?: JobResponse | null) {
   return { message: raw || "Rendering stopped before completion.", className: "Render", code: "render_failed", retryable: true };
 }
 
-export default function Workspace() {
+type WorkspaceProps = {
+  /** Render only the tracker card (no page shell) inside another page. */
+  embedded?: boolean;
+  jobId?: string;
+  downloadToken?: string;
+  receiptToken?: string;
+};
+
+export default function Workspace({
+  embedded = false,
+  jobId: jobIdProp,
+  downloadToken: downloadTokenProp,
+  receiptToken: receiptTokenProp,
+}: WorkspaceProps = {}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const pathJobId = useMemo(() => {
@@ -235,9 +248,9 @@ export default function Workspace() {
     if (!match || match[1] === "status") return "";
     return decodeURIComponent(match[1]).trim();
   }, [pathname]);
-  const jobId = searchParams.get("job_id")?.trim() || pathJobId;
-  const downloadToken = searchParams.get("download_token")?.trim() || "";
-  const receiptToken = searchParams.get("receipt_token")?.trim() || "";
+  const jobId = jobIdProp ?? (searchParams.get("job_id")?.trim() || pathJobId);
+  const downloadToken = downloadTokenProp ?? (searchParams.get("download_token")?.trim() || "");
+  const receiptToken = receiptTokenProp ?? (searchParams.get("receipt_token")?.trim() || "");
   const [job, setJob] = useState<JobResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -444,7 +457,24 @@ export default function Workspace() {
       ? packageSentenceForStatus({ status, paymentWaitingMessage, failureMessage: failure.message })
       : packageSentenceForStatus({ status, failureMessage: failure.message });
   const statusIcon =
-    status === "complete" ? "\u2713" : status === "failed" ? "!" : status === "running" ? "\u25CF" : "\u25CB";
+    status === "complete" ? (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="m5 12.5 4.5 4.5L19 7.5" />
+      </svg>
+    ) : status === "failed" ? (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+        <path d="M12 4.5v10" />
+        <path d="M12 19.5v.01" />
+      </svg>
+    ) : status === "running" ? (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+        <path d="M12 3a9 9 0 1 0 9 9" />
+      </svg>
+    ) : (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5" />
+      </svg>
+    );
   const renderSeconds = Number.isFinite(Number(job?.render_seconds)) ? Math.round(Number(job?.render_seconds)) : null;
   const packageId = job?.job_id || jobId || null;
   const submittedTime = formatDate(job?.submitted_at || job?.created_at) || "Not submitted yet";
@@ -521,17 +551,7 @@ export default function Workspace() {
     ["Failure detail", status === "failed" ? job?.failure_reason || job?.error_detail : null],
   ];
 
-  return (
-    <div className="ws">
-      <main className="wrap render-flow-page render-dashboard">
-        <section className="render-flow-head render-dashboard-head">
-          <div>
-            <span className="render-label">Package tracker</span>
-              <h1>{job ? displayTitle : "Package tracker"}</h1>
-            <p>Track your render from upload to download.</p>
-          </div>
-        </section>
-
+  const trackerCard = (
         <section className="render-job-card render-status-hero" aria-label="Package tracker">
           {!jobId || (error && !job) ? (
             <div className="render-empty-state">
@@ -729,6 +749,21 @@ export default function Workspace() {
             </>
           ) : null}
         </section>
+  );
+
+  if (embedded) return trackerCard;
+
+  return (
+    <div className="ws">
+      <main className="wrap render-flow-page render-dashboard">
+        <section className="render-flow-head render-dashboard-head">
+          <div>
+            <span className="render-label">Package tracker</span>
+            <h1>{job ? displayTitle : "Package tracker"}</h1>
+            <p>Track your render from upload to download.</p>
+          </div>
+        </section>
+        {trackerCard}
       </main>
     </div>
   );

@@ -4,7 +4,7 @@ import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Account",
-  description: "View Farpy balance, package history, delivery receipts, and wallet transactions.",
+  description: "View Farpy balance, top up your wallet, track packages, and review delivery receipts and wallet transactions.",
   alternates: { canonical: "/account" },
   robots: { index: false, follow: false },
 };

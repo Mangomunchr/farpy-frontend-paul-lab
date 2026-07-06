@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import SiteNav from "@/components/SiteNav";
+import Workspace from "@/components/Workspace";
+import TopUpPage from "@/components/TopUpPage";
 
 type Transaction = {
   event_id: string;
@@ -92,23 +93,28 @@ const receiptPageFromUrls = (receiptUrl?: string | null, downloadUrl?: string | 
   }
 };
 
-const workspaceUrlFromRender = (render: AccountRender) => {
-  const params = new URLSearchParams({ job_id: render.job_id });
+type TrackerTarget = {
+  jobId: string;
+  downloadToken: string;
+  receiptToken: string;
+};
+
+const trackerTargetFromRender = (render: AccountRender): TrackerTarget => {
+  let downloadToken = "";
+  let receiptToken = "";
   try {
     if (render.download_url) {
       const download = new URL(render.download_url, window.location.origin);
-      const token = download.searchParams.get("token");
-      if (token) params.set("download_token", token);
+      downloadToken = download.searchParams.get("token") || "";
     }
     if (render.receipt_url) {
       const receipt = new URL(render.receipt_url, window.location.origin);
-      const token = receipt.searchParams.get("token");
-      if (token) params.set("receipt_token", token);
+      receiptToken = receipt.searchParams.get("token") || "";
     }
   } catch {
-    // Legacy URLs still get a useful workspace link by job id.
+    // Legacy URLs still get a useful tracker by job id.
   }
-  return `/workspace?${params.toString()}`;
+  return { jobId: render.job_id, downloadToken, receiptToken };
 };
 
 const supportUrl = (subject: string, body: string) => {
@@ -127,6 +133,124 @@ const packageSupportBody = (render: AccountRender, action: string) =>
     "Describe what you need:",
   ].filter(Boolean).join("\n");
 
+// Dev-only preview data: open /account?demo=1 (or /account#demo) while running
+// `npm run dev` to see the signed-in page with populated history. Never active
+// in production. Matched loosely because some openers percent-encode the "=".
+const isDemoMode = () =>
+  process.env.NODE_ENV === "development" &&
+  typeof window !== "undefined" &&
+  (/demo/.test(window.location.search) || /demo/.test(window.location.hash));
+
+const DEMO_TRANSACTIONS: Transaction[] = [
+  { event_id: "evt_009", type: "debit", amount_cents: 290, balance_after_cents: 2890, job_id: "pkg_d4f81a", created_at: "2026-07-05T14:22:00Z" },
+  { event_id: "evt_008", type: "refund", amount_cents: 640, balance_after_cents: 3180, job_id: "pkg_c3e970", created_at: "2026-07-04T09:15:00Z" },
+  { event_id: "evt_007", type: "debit", amount_cents: 640, balance_after_cents: 2540, job_id: "pkg_c3e970", created_at: "2026-07-03T21:48:00Z" },
+  { event_id: "evt_006", type: "credit", amount_cents: 2500, balance_after_cents: 3180, job_id: null, created_at: "2026-07-02T11:05:00Z" },
+  { event_id: "evt_005", type: "refund", amount_cents: 510, balance_after_cents: 680, job_id: "pkg_b2c655", created_at: "2026-07-01T16:30:00Z" },
+  { event_id: "evt_004", type: "debit", amount_cents: 510, balance_after_cents: 170, job_id: "pkg_b2c655", created_at: "2026-06-30T19:02:00Z" },
+  { event_id: "evt_003", type: "debit", amount_cents: 320, balance_after_cents: 680, job_id: "pkg_a1904e", created_at: "2026-06-29T08:44:00Z" },
+  { event_id: "evt_002", type: "credit", amount_cents: 1000, balance_after_cents: 1000, job_id: null, created_at: "2026-06-28T10:00:00Z" },
+];
+
+const DEMO_WALLET: WalletResponse = {
+  ok: true,
+  email: "demo@farpy.com",
+  balance_cents: 2890,
+  transactions: DEMO_TRANSACTIONS,
+};
+
+const DEMO_RENDERS: AccountRender[] = [
+  {
+    job_id: "pkg_d4f81a",
+    upload_id: "upl_5510aa",
+    filename: "studio-loft.blend",
+    status: "complete",
+    status_label: "Delivered",
+    frame_count: 120,
+    rendered_file_count: 120,
+    renderer: "cycles",
+    price_cents: 290,
+    payment_status: "captured",
+    payment_mode: "wallet",
+    created_at: "2026-07-05T13:58:00Z",
+    completed_at: "2026-07-05T14:21:00Z",
+    output_size_bytes: 482344960,
+    download_url: "/node/v1/web-render/jobs/pkg_d4f81a/download?token=demo-download",
+    receipt_url: "/node/v1/web-render/jobs/pkg_d4f81a/receipt?token=demo-receipt",
+  },
+  {
+    job_id: "pkg_e5a02b",
+    upload_id: "upl_6621bb",
+    filename: "hero-shot.blend",
+    status: "running",
+    status_label: "Rendering",
+    frame_count: 300,
+    rendered_file_count: 184,
+    renderer: "cycles",
+    price_cents: 720,
+    payment_status: "captured",
+    payment_mode: "wallet",
+    created_at: "2026-07-05T22:10:00Z",
+  },
+  {
+    job_id: "pkg_c3e970",
+    upload_id: "upl_4409cc",
+    filename: "smoke-sim.blend",
+    status: "failed",
+    status_label: "Failed - refunded",
+    frame_count: 250,
+    renderer: "cycles",
+    price_cents: 640,
+    payment_status: "captured",
+    payment_mode: "wallet",
+    created_at: "2026-07-03T21:40:00Z",
+  },
+  {
+    job_id: "pkg_b2c655",
+    upload_id: "upl_3308dd",
+    filename: "product-turntable.blend",
+    status: "complete",
+    status_label: "Delivered",
+    frame_count: 90,
+    rendered_file_count: 90,
+    renderer: "eevee",
+    price_cents: 510,
+    payment_status: "captured",
+    payment_mode: "wallet",
+    created_at: "2026-06-30T18:40:00Z",
+    completed_at: "2026-06-30T19:01:00Z",
+    output_size_bytes: 268435456,
+    download_url: "/node/v1/web-render/jobs/pkg_b2c655/download?token=demo-download",
+    receipt_url: "/node/v1/web-render/jobs/pkg_b2c655/receipt?token=demo-receipt",
+  },
+  {
+    job_id: "pkg_a1904e",
+    upload_id: "upl_2207ee",
+    filename: "kitchen-still.blend",
+    status: "complete",
+    status_label: "Delivered",
+    frame_count: 1,
+    rendered_file_count: 1,
+    renderer: "cycles",
+    price_cents: 320,
+    payment_status: "captured",
+    payment_mode: "wallet",
+    created_at: "2026-06-29T08:30:00Z",
+    completed_at: "2026-06-29T08:43:00Z",
+    output_size_bytes: 18874368,
+    download_url: "/node/v1/web-render/jobs/pkg_a1904e/download?token=demo-download",
+    receipt_url: "/node/v1/web-render/jobs/pkg_a1904e/receipt?token=demo-receipt",
+  },
+];
+
+type AccountTab = "packages" | "wallet" | "settings";
+
+const ACCOUNT_TABS: { id: AccountTab; label: string }[] = [
+  { id: "packages", label: "Packages" },
+  { id: "wallet", label: "Wallet" },
+  { id: "settings", label: "Settings" },
+];
+
 const downloadJson = (filename: string, data: unknown) => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -142,20 +266,42 @@ const downloadJson = (filename: string, data: unknown) => {
 export default function AccountPage() {
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [renders, setRenders] = useState<AccountRender[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showAllRenders, setShowAllRenders] = useState(false);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
+  const [tracker, setTracker] = useState<TrackerTarget | null>(null);
+  const [tab, setTab] = useState<AccountTab>("packages");
+
+  useEffect(() => {
+    // Allow /account?job_id=...&download_token=...&receipt_token=... links to
+    // open the package tracker directly, and /account#topup to open the wallet.
+    const params = new URLSearchParams(window.location.search);
+    const jobId = params.get("job_id")?.trim();
+    if (jobId) {
+      setTracker({
+        jobId,
+        downloadToken: params.get("download_token")?.trim() || "",
+        receiptToken: params.get("receipt_token")?.trim() || "",
+      });
+    }
+    if (/topup|wallet/.test(window.location.hash)) setTab("wallet");
+  }, []);
 
   useEffect(() => {
     let alive = true;
+    if (isDemoMode()) {
+      setWallet(DEMO_WALLET);
+      setRenders(DEMO_RENDERS);
+      return () => {
+        alive = false;
+      };
+    }
     fetch("/v1/wallet/transactions", { credentials: "include", cache: "no-store" })
       .then(async (res) => ({ res, json: (await res.json().catch(() => ({}))) as WalletResponse }))
       .then(({ res, json }) => {
         if (!alive) return;
         setWallet(res.ok ? json : { error: json.error || `status_${res.status}` });
       })
-      .catch(() => alive && setWallet({ error: "wallet_unavailable" }))
-      .finally(() => alive && setLoading(false));
+      .catch(() => alive && setWallet({ error: "wallet_unavailable" }));
     fetch("/v1/account/renders", { credentials: "include", cache: "no-store" })
       .then(async (res) => (res.ok ? await res.json() : null))
       .then((json) => {
@@ -196,34 +342,59 @@ export default function AccountPage() {
 
       <main className="wrap render-flow-page">
         <section className="render-flow-head">
-          <h1>Account</h1>
-          <p>Balance, package history, and delivery receipts.</p>
-          {signedIn && wallet?.email ? <p className="fy-auth__sub">{wallet.email}</p> : null}
-          {signedIn ? (
-            <button className="pj-btn" type="button" onClick={signOut}>
-              Sign out
-            </button>
-          ) : null}
-        </section>
-
-        <section className="render-job-card account-balance-card account-overview-card">
-          <div>
-            <h2 className="acct-card-title">Overview</h2>
-            <span className="render-label">Balance</span>
-            <strong className="render-price">{loading ? "..." : signedIn ? formatCents(wallet?.balance_cents) : "-"}</strong>
-          </div>
-          <div className="account-overview-actions">
+          <div className="account-head-row">
+            <h1>Account</h1>
             {signedIn ? (
-              <Link className="pj-btn pj-btn--blue" href="/topup" prefetch={false}>Top up</Link>
-            ) : (
-              <Link className="pj-btn pj-btn--blue" href="/signin?next=/account" prefetch={false}>Sign in</Link>
-            )}
+              <button className="pj-btn" type="button" onClick={signOut}>
+                Sign out
+              </button>
+            ) : null}
           </div>
+          <p>Balance, top-ups, package tracking, and delivery receipts.</p>
+          {signedIn && wallet?.email ? <p className="fy-auth__sub">{wallet.email}</p> : null}
         </section>
 
+        <div className="account-tabs" role="tablist" aria-label="Account sections">
+          {ACCOUNT_TABS.map((entry) => (
+            <button
+              key={entry.id}
+              className={`account-tab${tab === entry.id ? " is-active" : ""}`}
+              type="button"
+              role="tab"
+              aria-selected={tab === entry.id}
+              onClick={() => setTab(entry.id)}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "wallet" ? <TopUpPage embedded /> : null}
+
+        {tab === "packages" ? (
         <section className="render-job-card">
           <h2 className="acct-card-title">Package management</h2>
-          <p className="fy-auth__sub">Manage recent packages, downloads, delivery receipts, and support requests.</p>
+          <p className="fy-auth__sub">Track active packages and manage downloads, delivery receipts, and support requests.</p>
+
+          {tracker ? (
+            <div className="account-tracker">
+              <div className="account-tracker-head">
+                <span className="render-label">Package tracker</span>
+                <button className="acct-receipt-link" type="button" onClick={() => setTracker(null)}>
+                  Close tracker
+                </button>
+              </div>
+              <Suspense fallback={<div />}>
+                <Workspace
+                  embedded
+                  jobId={tracker.jobId}
+                  downloadToken={tracker.downloadToken}
+                  receiptToken={tracker.receiptToken}
+                />
+              </Suspense>
+            </div>
+          ) : null}
+
           {signedIn && renders.length ? (
             <ul className="acct-render-list">
               {visibleRenders.map((render) => (
@@ -264,7 +435,18 @@ export default function AccountPage() {
                   </dl>
 
                   <div className="acct-render-actions">
-                    <a className="acct-receipt-link" href={workspaceUrlFromRender(render)}>View workspace</a>
+                    <button
+                      className="acct-receipt-link"
+                      type="button"
+                      onClick={() => {
+                        setTracker(trackerTargetFromRender(render));
+                        window.setTimeout(() => {
+                          document.querySelector(".account-tracker")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }, 50);
+                      }}
+                    >
+                      Track package
+                    </button>
                     {CANCELLABLE_STATUSES.has(render.status || "") ? (
                       <a
                         className="acct-receipt-link"
@@ -319,7 +501,9 @@ export default function AccountPage() {
             <p className="fy-auth__sub">{signedIn ? "No packages yet." : "No package history shown until sign-in."}</p>
           )}
         </section>
+        ) : null}
 
+        {tab === "wallet" ? (
         <section className="render-job-card">
           <h2 className="acct-card-title">Wallet history</h2>
           {signedIn && transactions.length ? (
@@ -346,7 +530,9 @@ export default function AccountPage() {
             <p className="fy-auth__sub">{signedIn ? "No wallet transactions yet." : "No account data shown until sign-in."}</p>
           )}
         </section>
+        ) : null}
 
+        {tab === "wallet" ? (
         <section className="render-job-card account-self-service-card">
           <div className="account-self-service-head">
             <h2 className="acct-card-title">Refund history</h2>
@@ -371,7 +557,10 @@ export default function AccountPage() {
             <p className="fy-auth__sub">{signedIn ? "No refunds yet." : "Refund history shown after sign-in."}</p>
           )}
         </section>
+        ) : null}
 
+        {tab === "settings" ? (
+        <>
         <section className="render-job-card account-self-service-card">
           <h2 className="acct-card-title">Privacy</h2>
           <p className="fy-auth__sub">Export the account data shown on this page, or request account deletion through support.</p>
@@ -390,12 +579,13 @@ export default function AccountPage() {
 
         <section className="render-job-card account-self-service-card">
           <h2 className="acct-card-title">Support</h2>
-          <div className="account-self-service-actions">
-            <a className="pj-btn" href={supportUrl("Farpy package issue", "Describe the package issue. Include package ID and screenshot if available.")}>Report package issue</a>
-            <a className="pj-btn" href={supportUrl("Farpy billing issue", "Describe the billing issue. Include receipt ID or payment reference if available.")}>Billing issue</a>
-            <a className="pj-btn" href={supportUrl("Farpy rendering issue", "Describe the rendering issue. Include package ID, renderer, frame count, and any error shown.")}>Rendering issue</a>
-          </div>
+          <p className="fy-auth__sub">
+            Email <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> if you have a package issue to report, a billing issue, or a rendering issue.
+            Include your package ID, receipt ID, and account email so we can help faster. We reply within 1 business day.
+          </p>
         </section>
+        </>
+        ) : null}
       </main>
     </div>
   );

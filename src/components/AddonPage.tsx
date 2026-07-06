@@ -68,21 +68,6 @@ export default function AddonPage() {
                 <p>Verify the downloaded ZIP with this SHA-256 hash:</p>
                 <code>{ADDON_SHA256}</code>
               </section>
-
-              <section className="legal-section">
-                <h2>Useful links</h2>
-                <p className="addon-actions">
-                  <Link className="btn btn-secondary" href="/account" prefetch={false}>
-                    View Account
-                  </Link>
-                  <Link className="btn btn-secondary" href="/pricing" prefetch={false}>
-                    View Pricing
-                  </Link>
-                  <Link className="btn btn-secondary" href="/docs" prefetch={false}>
-                    Read Docs
-                  </Link>
-                </p>
-              </section>
             </div>
           </div>
         </div>
