@@ -15,40 +15,50 @@
   <meta name="twitter:description" content="Compare real Farpy Benchmark GPU submissions, download the Windows benchmark, and view public Blender render performance by GPU." />
 
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:24px;background:#070907;color:#f7f1d1}
-    main{max-width:960px;margin:auto} a{color:#ffe46b} table{width:100%;border-collapse:collapse}
-    th,td{padding:10px;border-bottom:1px solid #283027;text-align:left} th{font-size:12px;text-transform:uppercase;color:#b9d8c6}
-    .muted{color:#b9d8c6}.err{color:#ffb4a8}.download,.panel{border:1px solid #283027;padding:16px;margin:18px 0;background:#10150f}
-    .actions,.trust,.links{display:flex;flex-wrap:wrap;gap:12px}.button{display:inline-block;padding:10px 12px;border:1px solid #ffe46b;text-decoration:none}
-    .primary{background:#ffe46b;color:#101311;font-weight:800}.trust span{border:1px solid #283027;padding:8px 10px;background:#101311;color:#dcebd5}
-    h1{margin-bottom:8px}.lede{font-size:18px;line-height:1.45;max-width:720px}.note{font-size:13px;color:#b9d8c6}
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;color:#172033;background:#f7f9fc;line-height:1.5;color-scheme:light}
+    *{box-sizing:border-box}body{margin:0;background:#f7f9fc;color:#172033}main{width:min(1040px,calc(100% - 48px));margin:auto;padding:clamp(32px,7vw,72px) 0}
+    a{color:#175cd3;text-underline-offset:3px}h1,h2,p{margin-top:0}h1{max-width:720px;margin-bottom:14px;font-size:clamp(38px,7vw,64px);line-height:1;letter-spacing:-.045em}h2{font-size:clamp(20px,3vw,26px);letter-spacing:-.02em}
+    .eyebrow{display:block;margin-bottom:14px;color:#175cd3;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.lede{max-width:680px;font-size:clamp(16px,2vw,19px);line-height:1.65}.muted{color:#526079}.err{color:#b42318}.hero{padding-bottom:clamp(24px,5vw,48px)}
+    .download,.panel,.results{margin:20px 0;padding:clamp(20px,4vw,32px);border:1px solid #d8e0eb;border-radius:16px;background:#fff;box-shadow:0 14px 36px rgba(23,32,51,.06)}
+    .download{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:center;border-color:#b8cff5;background:linear-gradient(145deg,#eef5ff,#fff 58%)}
+    .actions,.trust,.links{display:flex;flex-wrap:wrap;gap:10px}.actions{align-items:center}.button{display:inline-flex;min-height:46px;align-items:center;justify-content:center;padding:10px 16px;border:1px solid #c7d2e2;border-radius:9px;background:#fff;color:#172033;font-weight:750;text-decoration:none;transition:background .12s ease,border-color .12s ease,transform .12s ease}
+    .button:hover{border-color:#8ba9d8;background:#f3f7fd;transform:translateY(-1px)}.button:focus-visible,a:focus-visible{outline:3px solid #84adf0;outline-offset:3px}.primary{border-color:#175cd3;background:#175cd3;color:#fff;box-shadow:0 8px 20px rgba(23,92,211,.2)}.primary:hover{border-color:#124aa8;background:#124aa8}
+    .trust{margin-top:22px}.trust span{padding:7px 10px;border:1px solid #d8e0eb;border-radius:999px;background:#fff;color:#526079;font-size:13px;font-weight:700}.note{margin:10px 0 0;color:#66738a;font-size:13px}.results-head{display:flex;align-items:end;justify-content:space-between;gap:16px}.status{margin:0;color:#526079;font-size:14px;font-weight:700}
+    .table-wrap{overflow-x:auto;margin-top:18px;border:1px solid #e0e6ef;border-radius:12px}table{width:100%;min-width:720px;border-collapse:collapse}th,td{padding:13px 14px;border-bottom:1px solid #e5eaf1;text-align:left}th{background:#f8fafc;color:#66738a;font-size:11px;letter-spacing:.06em;text-transform:uppercase}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:#f8fbff}.panel{box-shadow:none}.links{margin-bottom:0}
+    @media(max-width:720px){main{width:min(100% - 28px,1040px);padding:28px 0}.download{grid-template-columns:1fr}.actions .button{width:100%}.results-head{align-items:flex-start;flex-direction:column}.panel,.download,.results{padding:18px}}
+    @media(max-width:375px){main{width:calc(100% - 20px)}h1{font-size:36px}.trust{display:grid;grid-template-columns:1fr 1fr}.trust span{text-align:center}}
+    @media(prefers-reduced-motion:reduce){.button{transition:none}.button:hover{transform:none}}
   </style>
 </head>
 <body>
   <main>
-    <h1>Compare real GPU benchmark results.</h1>
-    <p class="lede muted">Run Farpy Benchmark on Windows and submit your score. Results are grouped by GPU so Blender users can compare real public submissions.</p>
+    <header class="hero">
+    <span class="eyebrow">Farpy Benchmark</span>
+    <h1>Understand your GPU&rsquo;s Blender performance.</h1>
+    <p class="lede muted">Run one repeatable local render test, get a clear score, and compare it with real public submissions. Benchmarking remains useful whether or not you run a Farpy node.</p>
     <div class="trust" aria-label="Benchmark trust checks">
       <span>Real submissions only</span>
       <span>Public leaderboard</span>
       <span>Checksums available</span>
       <span>Windows release</span>
     </div>
+    </header>
     <section class="download" aria-label="Download Farpy Benchmark">
-      <h2>Download Farpy Benchmark for Windows</h2>
-      <p class="muted">Run the public desktop benchmark and submit a real result. Windows artifacts only for this release.</p>
-      <p class="actions">
-        <a class="button primary" href="/downloads/farpy-benchmark-windows-amd64.exe">Download Windows Installer</a>
+      <div><h2>Test this PC</h2>
+      <p class="muted">Install the Windows benchmark, run the Blender test locally, and submit the result when you choose.</p>
+      <p class="note">Windows only in this release. Installer is unsigned while EV code signing is in progress.</p></div>
+      <div class="actions">
+        <a class="button primary" href="/downloads/farpy-benchmark-windows-amd64.exe">Test My PC</a>
         <a class="button" href="/downloads/farpy-benchmark-windows-amd64.msi">Download MSI</a>
-        <a href="/downloads/">Checksums</a>
-      </p>
-      <p class="note">Unsigned until EV code signing completes.</p>
+        <a href="/downloads/">Verify checksums</a>
+      </div>
     </section>
-    <p id="status">Loading...</p>
-    <table>
+    <section class="results" aria-labelledby="results-title">
+    <div class="results-head"><div><span class="eyebrow">Public data</span><h2 id="results-title">GPU results</h2></div><p class="status" id="status" role="status" aria-live="polite">Loading real submissions&hellip;</p></div>
+    <div class="table-wrap"><table>
       <thead><tr><th>GPU</th><th>Submissions</th><th>Avg score</th><th>Median</th><th>Top</th><th>Avg render</th></tr></thead>
       <tbody id="rows"><tr><td colspan="6">No data loaded.</td></tr></tbody>
-    </table>
+    </table></div></section>
     <section class="panel" aria-label="Benchmark details">
       <h2>What Farpy Benchmark measures</h2>
       <p class="muted">Farpy Benchmark measures Blender render performance on the local GPU and submits public result records for comparison.</p>
@@ -69,6 +79,9 @@
     const API_BASE = localStorage.getItem("farpy_leaderboard_api_base") || "/node/v1/leaderboard";
     const fmt = (n) => Number.isFinite(Number(n)) ? Number(n).toFixed(2).replace(/\.00$/, "") : "-";
     const plural = (count, singular, pluralLabel) => `${count} ${count === 1 ? singular : pluralLabel}`;
+    const escapeHtml = (value) => String(value ?? "")
+      .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
     async function load(){
       const status = document.getElementById("status");
       const rowsEl = document.getElementById("rows");
@@ -81,12 +94,12 @@
         status.textContent = `${plural(rows.length, "GPU group", "GPU groups")} · ${plural(submissions, "public submission", "public submissions")}`;
         rowsEl.innerHTML = rows.length ? rows.map((g) => `
           <tr>
-            <td><a href="/benchmark/gpu/?gpu=${encodeURIComponent(g.gpu_slug)}">${g.gpu_name || g.gpu_slug}</a></td>
-            <td>${g.submissions ?? 0}</td>
-            <td>${fmt(g.avg_score)}</td>
-            <td>${fmt(g.median_score)}</td>
-            <td>${fmt(g.top_score)}</td>
-            <td>${fmt(g.avg_render_seconds)}s</td>
+            <td><a href="/benchmark/gpu/?gpu=${encodeURIComponent(g.gpu_slug)}">${escapeHtml(g.gpu_name || g.gpu_slug)}</a></td>
+            <td>${escapeHtml(g.submissions ?? 0)}</td>
+            <td>${escapeHtml(fmt(g.avg_score))}</td>
+            <td>${escapeHtml(fmt(g.median_score))}</td>
+            <td>${escapeHtml(fmt(g.top_score))}</td>
+            <td>${escapeHtml(fmt(g.avg_render_seconds))}s</td>
           </tr>`).join("") : '<tr><td colspan="6">No submissions yet.</td></tr>';
       } catch {
         status.className = "err";
