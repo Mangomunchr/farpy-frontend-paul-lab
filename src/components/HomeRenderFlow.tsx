@@ -49,6 +49,7 @@ const SINGLE_FRAME: FrameInfo = { start: MIN_FRAME, end: MIN_FRAME, count: 1, de
 
 export default function HomeRenderFlow() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const dragDepthRef = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [renderer, setRenderer] = useState<Renderer>("blender");
   const [queue, setQueue] = useState<Queue>("normal");
@@ -56,6 +57,7 @@ export default function HomeRenderFlow() {
   const [detecting, setDetecting] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   const rate = QUEUES[queue].rate;
   const total = frames.count * rate;
@@ -200,11 +202,26 @@ export default function HomeRenderFlow() {
           <div className="fy-estimator-step">
             <span className="fy-estimator-label">Package</span>
             <label
-              className="fy-upload-zone"
+              className={`fy-upload-zone${isDragging ? " is-dragging" : ""}`}
               id="dropzone"
-              onDragOver={(event) => event.preventDefault()}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                dragDepthRef.current += 1;
+                setIsDragging(true);
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "copy";
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault();
+                dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+                if (dragDepthRef.current === 0) setIsDragging(false);
+              }}
               onDrop={(event) => {
                 event.preventDefault();
+                dragDepthRef.current = 0;
+                setIsDragging(false);
                 void chooseFile(event.dataTransfer.files[0]);
               }}
             >
@@ -212,26 +229,31 @@ export default function HomeRenderFlow() {
                 ref={inputRef}
                 type="file"
                 accept=".blend,.orbx"
+                aria-label="Choose a Blender or Octane render package"
                 onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
               />
-              <span className="fy-upload-kicker">Send package</span>
-              <span className="fy-upload-types">Drop a .blend or .orbx package here.</span>
-              <span className="fy-upload-action">Choose package</span>
+              <span className="fy-upload-icon" aria-hidden="true" />
+              <span className="fy-upload-kicker">
+                {isDragging ? "Drop to add your package" : "Drop your render package here"}
+              </span>
+              <span className="fy-upload-types">Blender .blend or Octane .orbx</span>
+              <span className="fy-upload-action">Browse files</span>
               <span className="fy-upload-rate">From {money(QUEUES.normal.rate)} per frame &middot; pay only for what renders</span>
             </label>
           </div>
         ) : (
           <div className="fy-job" id="dropzone" aria-live="polite">
-            <section className="pj-card">
+            <section className={`pj-card fy-selected-upload${uploading ? " is-uploading" : ""}`} aria-busy={uploading}>
               <div className="pj-card__body">
                 <div className="fy-file">
+                  <span className="fy-file__icon" aria-hidden="true" />
                   <div className="fy-file__meta">
                     <span className="fy-file__name">{file.name}</span>
                     <span className="fy-file__size">
                       {formatSize(file.size)} &middot; {RENDERERS[renderer].label} package
                     </span>
                   </div>
-                  <button className="pj-btn pj-btn--tertiary fy-file__change" type="button" onClick={resetFile}>
+                  <button className="pj-btn pj-btn--tertiary fy-file__change" type="button" disabled={uploading} onClick={resetFile}>
                     Change
                   </button>
                 </div>
@@ -303,9 +325,19 @@ export default function HomeRenderFlow() {
                 </div>
               </div>
               <footer className="pj-card__footer">
-                <p className="pj-card__footer-text">
-                  Failed frames cost $0, so this is the most you would ever pay.
-                </p>
+                <div className="fy-upload-status">
+                  <p className="pj-card__footer-text">
+                    {uploading ? "Securely sending your package…" : "Failed frames cost $0, so this is the most you would ever pay."}
+                  </p>
+                  <div
+                    className="fy-upload-progress"
+                    role={uploading ? "progressbar" : undefined}
+                    aria-label={uploading ? "Uploading package" : undefined}
+                    aria-hidden={uploading ? undefined : true}
+                  >
+                    <span />
+                  </div>
+                </div>
                 <div className="pj-card__actions">
                   <button
                     className="pj-btn pj-btn--blue"
@@ -315,7 +347,8 @@ export default function HomeRenderFlow() {
                       void startRender();
                     }}
                   >
-                    {uploading ? "Sending package..." : "Send package"}
+                    {uploading && <span className="fy-button-spinner" aria-hidden="true" />}
+                    {uploading ? "Sending package…" : "Send package"}
                   </button>
                 </div>
               </footer>
