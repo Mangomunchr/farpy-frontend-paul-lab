@@ -1623,6 +1623,14 @@ code.api-inline {
   border-radius: var(--r-md);
   background: color-mix(in oklch, var(--paper) 82%, white);
 }
+.acct-render-row--queued,
+.acct-render-row--submitted,
+.acct-render-row--running {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+  background: color-mix(in srgb, var(--accent-tint) 24%, var(--paper));
+  box-shadow: 0 8px 22px rgb(31 41 55 / 5%);
+}
+.acct-render-row--complete { border-color: color-mix(in srgb, var(--ok) 18%, var(--line)); }
 .acct-render-main {
   display: flex;
   align-items: flex-start;
@@ -1677,7 +1685,14 @@ code.api-inline {
   font-size: 0.86rem;
   color: var(--ink);
 }
-.acct-render-actions { display: flex; flex-wrap: wrap; gap: 0.8rem 1rem; }
+.acct-render-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 0.8rem 1rem; }
+.acct-render-actions .acct-row-primary { min-height: 40px; }
+.acct-render-actions a:focus-visible,
+.acct-render-actions button:focus-visible,
+.acct-show-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
 
 @media (max-width: 720px) {
   .acct-render-main { display: grid; }
@@ -1689,6 +1704,19 @@ code.api-inline {
   .acct-render-row { padding: 0.9rem; }
   .acct-render-meta { grid-template-columns: 1fr; }
   .acct-render-actions { display: grid; }
+  .acct-render-actions .pj-btn,
+  .acct-render-actions .acct-receipt-link { width: 100%; justify-content: center; min-height: 40px; }
+  .account-fact-summary { grid-template-columns: 1fr 1fr; }
+  .account-balance-summary .pj-btn { width: 100%; }
+}
+@media (max-width: 375px) {
+  .account-tabs { overflow-x: auto; }
+  .account-tab { flex: 1 0 auto; }
+  .account-fact-summary { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-tab,
+  .acct-receipt-link { transition: none; }
 }
 
 .receipt-page { padding-top: var(--spacing-9); }
@@ -4906,6 +4934,11 @@ code.api-inline {
   cursor: pointer;
 }
 .account-tab:hover { color: var(--ink); }
+.account-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-2) var(--radius-2) 0 0;
+}
 .account-tab.is-active {
   color: var(--ink);
   border-bottom-color: var(--accent);
@@ -4923,6 +4956,79 @@ code.api-inline {
 }
 .account-tracker .render-job-card {
   background: var(--paper-2);
+}
+.account-package-overview {
+  display: grid;
+  grid-template-columns: minmax(12rem, .8fr) minmax(0, 1.6fr);
+  gap: var(--spacing-3);
+  margin-block: var(--spacing-4);
+}
+.account-balance-summary,
+.account-fact-summary div {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-3);
+  background: var(--paper);
+}
+.account-balance-summary {
+  display: grid;
+  align-content: center;
+  gap: .45rem;
+  padding: 1rem;
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+  background: color-mix(in srgb, var(--accent-tint) 36%, var(--paper));
+}
+.account-balance-summary > span,
+.account-fact-summary dt {
+  color: var(--ink-3);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.account-balance-summary > strong {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: clamp(1.6rem, 5vw, 2.35rem);
+  line-height: 1;
+}
+.account-balance-summary .pj-btn { width: fit-content; margin-top: .25rem; }
+.account-fact-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-2);
+  margin: 0;
+}
+.account-fact-summary div { padding: .8rem .9rem; }
+.account-fact-summary dd {
+  margin: .25rem 0 0;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 750;
+}
+.account-inline-state,
+.account-history-state {
+  display: grid;
+  justify-items: start;
+  gap: .35rem;
+  margin-bottom: var(--spacing-4);
+  padding: .9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-3);
+  background: var(--paper);
+}
+.account-inline-state strong,
+.account-history-state strong { color: var(--ink); }
+.account-inline-state span,
+.account-history-state span { color: var(--ink-2); font-size: .875rem; line-height: 1.5; }
+.account-history-state .pj-btn { margin-top: .4rem; }
+.account-history-state-error {
+  border-color: color-mix(in srgb, var(--danger) 22%, var(--line));
+  background: color-mix(in srgb, var(--danger-tint) 38%, var(--paper));
+}
+@media (max-width: 768px) {
+  .account-package-overview { grid-template-columns: 1fr; }
 }
 .account-self-service-actions {
   display: flex;

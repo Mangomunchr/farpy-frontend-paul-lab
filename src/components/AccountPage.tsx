@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import SiteNav from "@/components/SiteNav";
 import Workspace from "@/components/Workspace";
@@ -42,6 +43,7 @@ type AccountRender = {
 };
 
 const COMPLETE_STATUSES = new Set(["complete"]);
+const ACTIVE_STATUSES = new Set(["queued", "submitted", "running"]);
 const CANCELLABLE_STATUSES = new Set(["queued", "submitted"]);
 const DEFAULT_RENDER_COUNT = 5;
 const DEFAULT_TRANSACTION_COUNT = 10;
@@ -270,6 +272,7 @@ export default function AccountPage() {
   const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [tracker, setTracker] = useState<TrackerTarget | null>(null);
   const [tab, setTab] = useState<AccountTab>("packages");
+  const [historyState, setHistoryState] = useState<"loading" | "ready" | "unavailable">("loading");
 
   useEffect(() => {
     // Allow /account?job_id=...&download_token=...&receipt_token=... links to
@@ -291,6 +294,7 @@ export default function AccountPage() {
     if (isDemoMode()) {
       setWallet(DEMO_WALLET);
       setRenders(DEMO_RENDERS);
+      setHistoryState("ready");
       return () => {
         alive = false;
       };
@@ -305,9 +309,15 @@ export default function AccountPage() {
     fetch("/v1/account/renders", { credentials: "include", cache: "no-store" })
       .then(async (res) => (res.ok ? await res.json() : null))
       .then((json) => {
-        if (alive && Array.isArray(json?.renders)) setRenders(json.renders);
+        if (!alive) return;
+        if (Array.isArray(json?.renders)) {
+          setRenders(json.renders);
+          setHistoryState("ready");
+        } else {
+          setHistoryState("unavailable");
+        }
       })
-      .catch(() => {});
+      .catch(() => alive && setHistoryState("unavailable"));
     return () => {
       alive = false;
     };
@@ -315,10 +325,20 @@ export default function AccountPage() {
 
   const signedIn = wallet?.ok || Number.isInteger(wallet?.balance_cents);
   const transactions = wallet?.transactions || [];
-  const visibleRenders = showAllRenders ? renders : renders.slice(0, DEFAULT_RENDER_COUNT);
+  const sortedRenders = [...renders].sort((a, b) => {
+    const priority = (render: AccountRender) => ACTIVE_STATUSES.has(render.status || "") ? 0 : COMPLETE_STATUSES.has(render.status || "") ? 1 : 2;
+    const priorityDelta = priority(a) - priority(b);
+    if (priorityDelta) return priorityDelta;
+    return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+  });
+  const visibleRenders = showAllRenders ? sortedRenders : sortedRenders.slice(0, DEFAULT_RENDER_COUNT);
   const visibleTransactions = showAllTransactions ? transactions : transactions.slice(0, DEFAULT_TRANSACTION_COUNT);
   const refundTransactions = transactions.filter((txn) => txn.type === "refund");
-  const hiddenRenderCount = Math.max(0, renders.length - visibleRenders.length);
+  const activeRenderCount = renders.filter((render) => ACTIVE_STATUSES.has(render.status || "")).length;
+  const completedRenderCount = renders.filter((render) => COMPLETE_STATUSES.has(render.status || "")).length;
+  const totalDebitedCents = transactions.filter((txn) => txn.type === "debit").reduce((sum, txn) => sum + txn.amount_cents, 0);
+  const balanceCents = Number.isInteger(wallet?.balance_cents) ? Number(wallet?.balance_cents) : null;
+  const hiddenRenderCount = Math.max(0, sortedRenders.length - visibleRenders.length);
   const hiddenTransactionCount = Math.max(0, transactions.length - visibleTransactions.length);
 
   const exportAccountData = () => {
@@ -374,7 +394,32 @@ export default function AccountPage() {
         {tab === "packages" ? (
         <section className="render-job-card">
           <h2 className="acct-card-title">Package management</h2>
-          <p className="fy-auth__sub">Track active packages and manage downloads, delivery receipts, and support requests.</p>
+          <p className="fy-auth__sub">Active packages, completed downloads, and delivery receipts.</p>
+
+          {signedIn ? (
+            <section className="account-package-overview" aria-label="Account summary">
+              <div className="account-balance-summary">
+                <span>Available balance</span>
+                <strong>{balanceCents == null ? "Unavailable" : formatCents(balanceCents)}</strong>
+                {balanceCents != null && balanceCents <= 0 ? (
+                  <button className="pj-btn pj-btn--blue" type="button" onClick={() => setTab("wallet")}>Add funds</button>
+                ) : null}
+              </div>
+              <dl className="account-fact-summary">
+                <div><dt>Total jobs</dt><dd>{renders.length}</dd></div>
+                <div><dt>Active</dt><dd>{activeRenderCount}</dd></div>
+                <div><dt>Completed</dt><dd>{completedRenderCount}</dd></div>
+                <div><dt>Total debited</dt><dd>{formatCents(totalDebitedCents)}</dd></div>
+              </dl>
+            </section>
+          ) : null}
+
+          {signedIn && activeRenderCount === 0 && historyState === "ready" ? (
+            <div className="account-inline-state" role="status">
+              <strong>No active jobs</strong>
+              <span>Completed and previous jobs remain available below.</span>
+            </div>
+          ) : null}
 
           {tracker ? (
             <div className="account-tracker">
@@ -395,7 +440,17 @@ export default function AccountPage() {
             </div>
           ) : null}
 
-          {signedIn && renders.length ? (
+          {signedIn && historyState === "loading" ? (
+            <div className="account-history-state" role="status" aria-live="polite">
+              <strong>Loading render history</strong>
+              <span>Checking your account jobs.</span>
+            </div>
+          ) : signedIn && historyState === "unavailable" ? (
+            <div className="account-history-state account-history-state-error" role="alert">
+              <strong>Render history unavailable</strong>
+              <span>Your balance and account remain available. Try this page again later.</span>
+            </div>
+          ) : signedIn && renders.length ? (
             <ul className="acct-render-list">
               {visibleRenders.map((render) => (
                 <li className={`acct-render-row acct-render-row--${render.status || "unknown"}`} key={render.job_id}>
@@ -417,7 +472,7 @@ export default function AccountPage() {
                       <dd>{formatCents(render.price_cents)}</dd>
                     </div>
                     <div>
-                      <dt>Created</dt>
+                      <dt>Submitted</dt>
                       <dd>{formatDate(render.created_at)}</dd>
                     </div>
                     <div>
@@ -432,11 +487,26 @@ export default function AccountPage() {
                       <dt>Output</dt>
                       <dd>{formatBytes(render.output_size_bytes)}</dd>
                     </div>
+                    <div>
+                      <dt>Payment</dt>
+                      <dd>{render.payment_status || "-"}</dd>
+                    </div>
+                    <div>
+                      <dt>Download</dt>
+                      <dd>{render.download_url ? "Ready" : COMPLETE_STATUSES.has(render.status || "") ? "Unavailable" : "Not ready"}</dd>
+                    </div>
+                    <div>
+                      <dt>Receipt</dt>
+                      <dd>{render.receipt_url ? "Ready" : COMPLETE_STATUSES.has(render.status || "") ? "Unavailable" : "Not ready"}</dd>
+                    </div>
                   </dl>
 
                   <div className="acct-render-actions">
+                    {COMPLETE_STATUSES.has(render.status || "") && render.download_url ? (
+                      <a className="pj-btn pj-btn--blue acct-row-primary" href={render.download_url}>Download ZIP</a>
+                    ) : null}
                     <button
-                      className="acct-receipt-link"
+                      className={ACTIVE_STATUSES.has(render.status || "") ? "pj-btn pj-btn--blue acct-row-primary" : "acct-receipt-link"}
                       type="button"
                       onClick={() => {
                         setTracker(trackerTargetFromRender(render));
@@ -445,7 +515,7 @@ export default function AccountPage() {
                         }, 50);
                       }}
                     >
-                      Track package
+                      {ACTIVE_STATUSES.has(render.status || "") ? "Track active job" : "View details"}
                     </button>
                     {CANCELLABLE_STATUSES.has(render.status || "") ? (
                       <a
@@ -465,9 +535,6 @@ export default function AccountPage() {
                       >
                         Delete uploaded source
                       </a>
-                    ) : null}
-                    {COMPLETE_STATUSES.has(render.status || "") && render.download_url ? (
-                      <a className="acct-receipt-link" href={render.download_url}>Download ZIP</a>
                     ) : null}
                     {COMPLETE_STATUSES.has(render.status || "") && render.receipt_url ? (
                       <a className="acct-receipt-link" href={receiptPageFromUrls(render.receipt_url, render.download_url)}>View delivery receipt</a>
@@ -498,7 +565,11 @@ export default function AccountPage() {
               ) : null}
             </ul>
           ) : (
-            <p className="fy-auth__sub">{signedIn ? "No packages yet." : "No package history shown until sign-in."}</p>
+            <div className="account-history-state">
+              <strong>{signedIn ? "No renders yet" : "Sign in to view history"}</strong>
+              <span>{signedIn ? "Your first submitted package will appear here." : "Balance, jobs, downloads, and receipts are private to your account."}</span>
+              {signedIn ? <Link className="pj-btn pj-btn--blue" href="/#dropzone" prefetch={false}>Send a package</Link> : null}
+            </div>
           )}
         </section>
         ) : null}
