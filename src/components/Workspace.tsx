@@ -260,6 +260,7 @@ export default function Workspace({
   const [authChecked, setAuthChecked] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [copiedCompletionId, setCopiedCompletionId] = useState(false);
 
   const refreshWalletBalance = async (signal?: AbortSignal) => {
     if (!auth.authenticated) {
@@ -383,6 +384,13 @@ export default function Workspace({
     window.location.href = `/signin?next=${encodeURIComponent(current)}`;
   };
 
+  const copyCompletionId = async () => {
+    const value = job?.receipt_id || job?.job_id || jobId;
+    if (!value || typeof navigator === "undefined" || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(value);
+    setCopiedCompletionId(true);
+  };
+
   const frameCount = Number.isInteger(job?.frame_count) ? Number(job?.frame_count) : null;
   const renderedCount = Number.isInteger(job?.rendered_frame_count)
     ? Number(job?.rendered_frame_count)
@@ -462,13 +470,8 @@ export default function Workspace({
   const packageId = job?.job_id || jobId || null;
   const startCtaLabel = showCheckout ? "Pay and start render" : canStartWithWallet || canStartCaptured ? "Send package" : walletInsufficient ? "Top Up" : needsSignInToPay ? "Sign in to Pay" : null;
   const showStartedNotice = hasEnteredDispatch && (status === "queued" || status === "submitted") && job?.payment_status === "captured";
-  const completedSummaryRows = [
-    ["File", job?.filename],
-    ["Frames", frameCount],
-    ["Completed", formatDate(job?.completed_at || job?.receipt_created_at)],
-    ["Cost", Number.isInteger(job?.wallet_debit_cents) ? formatCents(job?.wallet_debit_cents) : hasPrice ? formatCents(priceCents) : null],
-  ].filter(([, value]) => value !== undefined && value !== null && value !== "");
   const downloadMeta = [
+    job?.output_filename || null,
     job?.output_size_bytes ? formatBytes(job.output_size_bytes) : null,
     Number.isInteger(job?.rendered_file_count) ? plural(Number(job?.rendered_file_count), "file") : null,
   ].filter(Boolean).join(" • ");
@@ -501,9 +504,21 @@ export default function Workspace({
               : displayStage === "Waiting for render partner" ? "Your package is in dispatch. This page updates when a render partner accepts it."
                 : "Farpy received the package. Complete the required start step to enter dispatch.";
   const etaLabel = status === "complete" ? "Complete" : status === "failed" ? "Unavailable" : "Estimating";
-  const downloadReadiness = job?.can_download && downloadToken ? "Ready" : status === "complete" || hasOutput ? "Preparing" : "Not ready";
+  const downloadReadiness = job?.can_download && downloadToken ? "Ready" : hasOutput ? "Preparing" : status === "complete" ? "Unavailable" : "Not ready";
   const receiptReadiness = job?.can_view_receipt && receiptToken ? "Ready" : status === "complete" ? "Preparing" : "Not ready";
   const paymentOutcome = job?.payment_status === "not_charged" ? "Not charged" : job?.payment_status === "failed" ? "Payment failed" : null;
+  const paymentResult = paymentOutcome
+    || (Number.isInteger(job?.wallet_debit_cents) ? formatCents(job?.wallet_debit_cents) : job?.payment_status === "captured" ? "Paid" : "Unavailable");
+  const receiptVerified = Boolean(job?.receipt_id && job?.output_sha256 && job?.can_view_receipt && receiptToken);
+  const completionId = job?.receipt_id || packageId;
+  const completedSummaryRows = [
+    ["Frames completed", renderedCount ?? frameCount ?? "Unavailable"],
+    ["Render duration", renderSeconds != null ? formatDuration(renderSeconds) : "Unavailable"],
+    ["GPU / node", nodeLabel || "Unavailable"],
+    ["Payment", paymentResult],
+    ["File", downloadReadiness],
+    ["Receipt", receiptReadiness],
+  ];
   const journeyStates: JourneyTimelineStateMap = {
     received: hasPackage ? "complete" : Boolean(job) ? "active" : "upcoming",
     payment: hasPackage ? (hasEnteredDispatch ? "complete" : "active") : "upcoming",
@@ -714,7 +729,30 @@ export default function Workspace({
               ) : null}
 
               {status === "complete" ? (
-                <div className="render-complete-panel" aria-label="Completed render actions">
+                <div className="render-complete-panel" role="status" aria-labelledby="render-status-title">
+                  <div className="render-success-summary">
+                    <span className="render-success-mark" aria-hidden="true">✓</span>
+                    <div>
+                      <strong>Render complete</strong>
+                      <span>
+                        {renderedCount ?? frameCount ? `${renderedCount ?? frameCount} completed frame${(renderedCount ?? frameCount) === 1 ? "" : "s"}` : "Completed output"}
+                        {renderSeconds != null ? ` in ${formatDuration(renderSeconds)}` : ""}.
+                      </span>
+                    </div>
+                  </div>
+
+                  {completionId ? (
+                    <div className="render-result-id">
+                      <div>
+                        <span>{job.receipt_id ? "Receipt ID" : "Job ID"}</span>
+                        <code>{completionId}</code>
+                      </div>
+                      <button className="pj-btn pj-btn--tertiary" type="button" onClick={() => void copyCompletionId()}>
+                        {copiedCompletionId ? "Copied" : "Copy ID"}
+                      </button>
+                    </div>
+                  ) : null}
+
                   <dl className="render-complete-summary">
                     {completedSummaryRows.map(([label, value]) => (
                       <div key={label}>
@@ -726,20 +764,30 @@ export default function Workspace({
                   <div className="render-actions render-actions-primary render-complete-actions">
                     {job.can_download && downloadToken ? (
                       <a className="pj-btn pj-btn--blue render-download-primary" href={`${JOB_API_BASE}/jobs/${encodeURIComponent(jobId)}/download?token=${encodeURIComponent(downloadToken)}`}>
-                        <span>Download package result</span>
+                        <span>Download result</span>
                         {downloadMeta ? <small>{downloadMeta}</small> : null}
                       </a>
-                    ) : null}
+                    ) : (
+                      <button className="pj-btn pj-btn--blue render-download-primary" type="button" disabled aria-describedby="download-readiness-note">
+                        <span>{hasOutput ? "Preparing download" : "Download unavailable"}</span>
+                        <small>{job?.output_filename || "No ready artifact"}</small>
+                      </button>
+                    )}
                     {job.can_view_receipt && receiptToken ? (
                       <a className="pj-btn" href={receiptPageUrl(jobId, receiptToken, downloadToken)}>
-                    View delivery receipt
+                        View receipt
                       </a>
-                    ) : null}
-                    <Link className="pj-btn" href="/#dropzone" prefetch={false}>Render another package</Link>
-                    {job.output_sha256 ? <span className="render-verified-badge">Verify receipt • SHA-256 verified</span> : null}
+                    ) : (
+                      <button className="pj-btn" type="button" disabled>Receipt preparing</button>
+                    )}
+                    {receiptVerified ? <span className="render-verified-badge">Receipt verified &middot; SHA-256</span> : null}
                   </div>
+                  <nav className="render-complete-secondary" aria-label="Completed render options">
+                    <Link href="/#dropzone" prefetch={false}>Render another package</Link>
+                    <Link href="/account" prefetch={false}>Account history</Link>
+                  </nav>
                   {downloadReadiness !== "Ready" || receiptReadiness !== "Ready" ? (
-                    <p className="render-note" role="status">Final files are still being prepared. This page updates automatically.</p>
+                    <p className="render-note" id="download-readiness-note">Final files are still being prepared. This page updates automatically.</p>
                   ) : null}
                 </div>
               ) : null}

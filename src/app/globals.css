@@ -4966,7 +4966,70 @@ code.api-inline {
 
 
 /* RECEIPT_WORKSPACE_UX_POLISH_V1 */
-.render-complete-panel { display: grid; gap: var(--spacing-3); }
+.render-complete-panel {
+  display: grid;
+  gap: var(--spacing-4);
+  padding: clamp(1rem, 3vw, 1.35rem);
+  border: 1px solid color-mix(in srgb, var(--ok) 20%, var(--line));
+  border-radius: var(--radius-3);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--ok-tint) 42%, var(--card)), var(--card) 48%);
+}
+.render-success-summary {
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+}
+.render-success-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: var(--ok-tint);
+  color: var(--ok);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+.render-success-summary div { display: grid; gap: .18rem; }
+.render-success-summary strong {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 3vw, 1.6rem);
+  letter-spacing: -.02em;
+}
+.render-success-summary div > span {
+  color: var(--ink-2);
+  font-size: .9rem;
+  line-height: 1.5;
+}
+.render-result-id {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: .75rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-2);
+  background: var(--card);
+}
+.render-result-id div { display: grid; gap: .2rem; min-width: 0; }
+.render-result-id span {
+  color: var(--ink-3);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.render-result-id code {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: .8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .render-complete-summary,
 .receipt-summary-grid {
   display: grid;
@@ -4986,8 +5049,28 @@ code.api-inline {
 .receipt-summary-grid dt { color: var(--ink-3); font-size: 11px; font-weight: 700; text-transform: uppercase; }
 .render-complete-summary dd,
 .receipt-summary-grid dd { margin: 0; color: var(--ink); font-family: var(--font-mono); overflow-wrap: anywhere; }
-.render-complete-actions { align-items: center; }
-.render-download-primary { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.12rem; }
+.render-complete-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(9rem, .8fr);
+  align-items: stretch;
+}
+.render-download-primary {
+  display: inline-flex;
+  min-height: 62px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .2rem;
+  border-radius: .65rem;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.render-download-primary:disabled {
+  border-color: var(--line-2);
+  background: var(--paper-2);
+  color: var(--ink-3);
+  box-shadow: none;
+  cursor: not-allowed;
+}
 .render-download-primary small { font-size: 0.75rem; font-weight: 700; opacity: 0.82; }
 .render-verified-badge {
   display: inline-flex;
@@ -5000,6 +5083,23 @@ code.api-inline {
   color: var(--ok);
   font-size: 0.82rem;
   font-weight: 800;
+}
+.render-complete-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem 1rem;
+}
+.render-complete-secondary a {
+  color: var(--ink-2);
+  font-size: .82rem;
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+.render-complete-secondary a:hover { color: var(--accent); }
+.render-result-id .pj-btn:focus-visible,
+.render-complete-secondary a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .receipt-summary-card,
 .receipt-sha-card,
@@ -5057,11 +5157,19 @@ code.api-inline {
 @media (max-width: 720px) {
   .render-complete-summary,
   .receipt-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .render-complete-actions { grid-template-columns: 1fr; }
   .receipt-sha-card { grid-template-columns: 1fr; }
 }
 @media (max-width: 460px) {
   .render-complete-summary,
   .receipt-summary-grid { grid-template-columns: 1fr; }
+  .render-complete-panel { padding: .85rem; }
+  .render-result-id { align-items: stretch; flex-direction: column; }
+  .render-result-id .pj-btn { width: 100%; }
+  .render-complete-secondary { flex-direction: column; align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .render-download-primary { transition: none; }
 }
 
 /* Homepage package-label flow */
