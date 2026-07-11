@@ -2154,6 +2154,89 @@ code.api-inline {
 @media (max-width: 560px) {
   .status-pillars { grid-template-columns: 1fr; }
 }
+.capacity-card {
+  display: grid;
+  gap: var(--spacing-4);
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: var(--radius-3);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-tint) 35%, var(--card)), var(--card) 52%);
+  box-shadow: 0 12px 32px rgb(31 41 55 / 6%);
+}
+.capacity-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+.capacity-head > div { display: grid; justify-items: start; gap: .5rem; }
+.capacity-head h2 { margin: 0; color: var(--ink); font-size: clamp(1.4rem, 4vw, 2rem); letter-spacing: -.025em; }
+.capacity-head p { max-width: 62ch; margin: 0; color: var(--ink-2); line-height: 1.6; }
+.capacity-pill {
+  display: inline-flex;
+  padding: .3rem .6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-4);
+  background: var(--paper-2);
+  color: var(--ink-2);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.capacity-pill-blue { border-color: color-mix(in srgb, var(--accent) 24%, var(--line)); background: var(--accent-tint); color: var(--accent-press); }
+.capacity-pill-green { border-color: color-mix(in srgb, var(--ok) 22%, var(--line)); background: var(--ok-tint); color: var(--ok); }
+.capacity-pill-warning { background: oklch(0.96 0.05 84); color: oklch(0.46 0.11 72); }
+.capacity-pill-danger { border-color: color-mix(in srgb, var(--danger) 22%, var(--line)); background: var(--danger-tint); color: var(--danger); }
+.capacity-eta {
+  display: grid;
+  flex: none;
+  gap: .2rem;
+  min-width: 7.5rem;
+  padding: .75rem .9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-2);
+  background: var(--paper);
+}
+.capacity-eta small,
+.capacity-facts dt,
+.capacity-details dt { color: var(--ink-3); font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.capacity-eta strong { color: var(--ink); font-family: var(--font-mono); font-size: .85rem; }
+.capacity-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--spacing-2);
+  margin: 0;
+}
+.capacity-facts div {
+  min-width: 0;
+  padding: .8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-2);
+  background: var(--paper);
+}
+.capacity-facts dd { margin: .25rem 0 0; color: var(--ink); font-family: var(--font-mono); font-size: .82rem; font-weight: 700; overflow-wrap: anywhere; }
+.capacity-details { border-top: 1px solid var(--line); }
+.capacity-details summary { padding-top: var(--spacing-3); color: var(--ink-2); cursor: pointer; font-size: .85rem; font-weight: 700; }
+.capacity-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.capacity-details dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem 1rem; margin: var(--spacing-3) 0 0; }
+.capacity-details dl div { min-width: 0; }
+.capacity-details dd { margin: .2rem 0 0; color: var(--ink); font-family: var(--font-mono); font-size: .76rem; overflow-wrap: anywhere; }
+@media (max-width: 768px) {
+  .capacity-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .capacity-head { align-items: stretch; flex-direction: column; }
+  .capacity-eta { width: 100%; }
+  .capacity-details dl { grid-template-columns: 1fr; }
+}
+@media (max-width: 375px) {
+  .capacity-card { padding: .9rem; }
+  .capacity-facts { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .capacity-card * { scroll-behavior: auto; }
+}
 
 /* ============================================================
    Paul static handoff port: compact app system

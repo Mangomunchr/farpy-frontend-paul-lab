@@ -625,10 +625,10 @@ export default function Workspace({
               ) : null}
 
               {showStartedNotice ? (
-                <div className="render-start-cta render-start-cta-muted" aria-label="Rendering started">
+                <div className="render-start-cta render-start-cta-muted" aria-label="Package submitted">
                   <div>
-                    <strong>Rendering started</strong>
-                    <span>Your package has entered dispatch and is waiting for an available render partner.</span>
+                    <strong>Package submitted</strong>
+                    <span>Your package is waiting for a compatible render partner. ETA remains estimating until one accepts it.</span>
                   </div>
                 </div>
               ) : null}

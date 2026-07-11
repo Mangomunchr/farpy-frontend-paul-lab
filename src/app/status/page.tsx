@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
+import CapacityStatus from "@/components/CapacityStatus";
 
 export const metadata: Metadata = {
   title: "Status",
@@ -68,6 +69,8 @@ export default function StatusPage() {
             </header>
 
             <div className="legal-body">
+              <CapacityStatus />
+
               <section className="legal-section">
                 <h2>Public status</h2>
                 <div className="status-pillars" aria-label="Farpy public status areas">
