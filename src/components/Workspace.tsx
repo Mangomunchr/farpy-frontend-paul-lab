@@ -1,13 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { WEB_RENDER_API_BASE } from "@/lib/webRenderApi";
 import { JourneyTimeline, type JourneyTimelineStateMap } from "@/components/JourneyTimeline";
 import {
   formatRendererName,
-  nextStepForStatus,
-  packageSentenceForStatus,
   packageTitleForStatus,
   worldStatusLabels,
 } from "@/lib/worldLanguage";
@@ -42,6 +41,7 @@ type JobResponse = {
   frame_start?: number;
   frame_end?: number;
   frame_count?: number;
+  current_frame?: number | null;
   rendered_frame_count?: number | null;
   rendered_file_count?: number;
   progress_percent?: number | null;
@@ -212,19 +212,19 @@ function classifyFailure(job?: JobResponse | null) {
   const raw = (job?.failure_reason || job?.error_detail || "").trim();
   const normalized = raw.toLowerCase();
   if (normalized.includes("timed out") || normalized.includes("timeout")) {
-    return { message: "Render timed out before completion.", className: "Timeout", code: "render_timed_out", retryable: true };
+    return { message: "The render reached its time limit before delivery.", className: "Timeout", code: "render_timed_out" };
   }
   if (normalized.includes("remote worker") || normalized.includes("worker failed")) {
-    return { message: "This render partner encountered a problem. No completed delivery was produced.", className: "Render partner", code: "render_partner_failed", retryable: true };
+    return { message: "The render stopped before a completed delivery was produced.", className: "Render", code: "render_stopped" };
   }
   if (normalized.includes("exited") || normalized.includes("stopped")) {
-    return { message: "Rendering stopped before completion.", className: "Render process", code: "render_stopped_before_completion", retryable: true };
+    return { message: "The render stopped before completion.", className: "Render", code: "render_stopped_before_completion" };
   }
   if (normalized.includes("zip") || normalized.includes("output") || normalized.includes("frame")) {
-    return { message: "Output validation failed.", className: "Output validation", code: "output_validation_failed", retryable: true };
+    return { message: "Farpy could not verify a complete output package.", className: "Output validation", code: "output_validation_failed" };
   }
 
-  return { message: raw || "Rendering stopped before completion.", className: "Render", code: "render_failed", retryable: true };
+  return { message: raw || "The render stopped before completion.", className: "Render", code: "render_failed" };
 }
 
 type WorkspaceProps = {
@@ -407,10 +407,7 @@ export default function Workspace({
     : frameCount && renderedCount != null
       ? Math.min(100, Math.max(0, (renderedCount / frameCount) * 100))
       : null;
-  const currentFrameEstimate =
-    frameCount && renderedCount != null && status === "running"
-      ? Math.min(frameCount, renderedCount + 1)
-      : null;
+  const currentFrame = Number.isInteger(job?.current_frame) ? Number(job?.current_frame) : null;
   const startedAtMs = job?.started_at ? new Date(job.started_at).getTime() : NaN;
   const elapsedSeconds =
     status === "running" && Number.isFinite(startedAtMs)
@@ -442,20 +439,6 @@ export default function Workspace({
       ? packageTitleForStatus(displayStatus || "submitted")
       : packageTitleForStatus(displayStatus);
   const cardTitle = status === "complete" ? "Package delivered successfully." : displayTitle;
-  const paymentWaitingMessage =
-    isPreSubmit && canStartWithWallet
-      ? "Ready to send. Start package to enter dispatch queue."
-      : isPreSubmit
-        ? "Payment required. Start package to enter dispatch queue."
-        : job?.payment_status === "checkout_created"
-      ? "Waiting for payment confirmation"
-      : "Payment required";
-  const shouldShowPaymentWaiting =
-    status !== "complete" && status !== "running" && status !== "failed" && job?.payment_status !== "captured";
-  const statusMessage =
-    walletInsufficient || shouldShowPaymentWaiting
-      ? packageSentenceForStatus({ status, paymentWaitingMessage, failureMessage: failure.message })
-      : packageSentenceForStatus({ status, failureMessage: failure.message });
   const statusIcon =
     status === "complete" ? (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -477,9 +460,6 @@ export default function Workspace({
     );
   const renderSeconds = Number.isFinite(Number(job?.render_seconds)) ? Math.round(Number(job?.render_seconds)) : null;
   const packageId = job?.job_id || jobId || null;
-  const submittedTime = formatDate(job?.submitted_at || job?.created_at) || "Not submitted yet";
-  const currentStage = isPreSubmit ? (canStartWithWallet ? "Ready to send" : "Payment required") : displayStatus ? statusLabel[displayStatus] : "Package tracker";
-  const estimatedNextStep = isPreSubmit ? "Start package to enter dispatch queue." : nextStepForStatus(status);
   const startCtaLabel = showCheckout ? "Pay and start render" : canStartWithWallet || canStartCaptured ? "Send package" : walletInsufficient ? "Top Up" : needsSignInToPay ? "Sign in to Pay" : null;
   const showStartedNotice = hasEnteredDispatch && (status === "queued" || status === "submitted") && job?.payment_status === "captured";
   const completedSummaryRows = [
@@ -501,6 +481,29 @@ export default function Workspace({
   const hasPackage = Boolean(job?.upload_id || job?.job_id);
   const hasRenderFactory = Boolean(nodeLabel || job?.started_at || status === "running" || status === "complete" || status === "failed");
   const hasOutput = Boolean(job?.output_filename || job?.output_sha256);
+  const displayStage =
+    status === "complete" ? "Complete"
+      : status === "failed" ? "Failed"
+        : hasOutput ? "Packaging"
+          : status === "running" ? "Rendering"
+            : nodeLabel || job?.started_at ? "Accepted"
+              : hasEnteredDispatch ? "Waiting for render partner"
+                : "Received";
+  const displayStageCopy =
+    displayStage === "Complete" ? "Your verified output is ready."
+      : displayStage === "Failed" ? failure.message
+        : displayStage === "Packaging" ? "Rendering finished. Farpy is preparing the download package."
+          : displayStage === "Rendering"
+            ? progressPct == null
+              ? "Rendering is active. Progress will appear when completed-frame data is available."
+              : "Completed-frame progress is updating from the render job."
+            : displayStage === "Accepted" ? "A render partner accepted the package and is preparing to render it."
+              : displayStage === "Waiting for render partner" ? "Your package is in dispatch. This page updates when a render partner accepts it."
+                : "Farpy received the package. Complete the required start step to enter dispatch.";
+  const etaLabel = status === "complete" ? "Complete" : status === "failed" ? "Unavailable" : "Estimating";
+  const downloadReadiness = job?.can_download && downloadToken ? "Ready" : status === "complete" || hasOutput ? "Preparing" : "Not ready";
+  const receiptReadiness = job?.can_view_receipt && receiptToken ? "Ready" : status === "complete" ? "Preparing" : "Not ready";
+  const paymentOutcome = job?.payment_status === "not_charged" ? "Not charged" : job?.payment_status === "failed" ? "Payment failed" : null;
   const journeyStates: JourneyTimelineStateMap = {
     received: hasPackage ? "complete" : Boolean(job) ? "active" : "upcoming",
     payment: hasPackage ? (hasEnteredDispatch ? "complete" : "active") : "upcoming",
@@ -521,7 +524,7 @@ export default function Workspace({
     ["Status", status ? statusLabel[status] : null],
     ["Render Partner ID", nodeLabel],
     ["Frames", frameCount && renderedCount != null ? `${renderedCount} / ${frameCount}` : frameCount],
-    ["Current frame", currentFrameEstimate],
+    ["Current frame", currentFrame],
     ["Created", formatDate(job?.created_at)],
     ["Submitted", formatDate(job?.submitted_at)],
     ["Started", formatDate(job?.started_at)],
@@ -545,14 +548,13 @@ export default function Workspace({
     ["Failure message", status === "failed" ? failure.message : null],
     ["Failure class", status === "failed" ? failure.className : null],
     ["Failure code", status === "failed" ? failure.code : null],
-    ["Retryable", status === "failed" ? (failure.retryable ? "Yes" : "No") : null],
     ["Render Partner ID", status === "failed" ? job?.node_id || job?.worker_id : null],
     ["Receipt Created", status === "failed" ? (job?.receipt_id || job?.receipt_created_at || job?.can_view_receipt ? "Yes" : "No") : null],
     ["Failure detail", status === "failed" ? job?.failure_reason || job?.error_detail : null],
   ];
 
   const trackerCard = (
-        <section className="render-job-card render-status-hero" aria-label="Package tracker">
+        <section className="render-job-card render-status-hero" aria-labelledby="render-status-title">
           {!jobId || (error && !job) ? (
             <div className="render-empty-state">
               <strong>No package selected.</strong>
@@ -570,13 +572,14 @@ export default function Workspace({
             </div>
           ) : job ? (
             <>
-              <div className="render-compressed-top">
+              <div className="render-compressed-top" role="status" aria-live="polite" aria-atomic="true">
                 <div className={`render-status-icon render-status-icon-${status || "queued"}`} aria-hidden="true">
                   {statusIcon}
                 </div>
                 <div className="render-compressed-copy">
-                  <h2>{cardTitle}</h2>
-                  <p>{statusMessage}</p>
+                  <span className={`render-stage-pill render-stage-pill-${status || "queued"}`}>{displayStage}</span>
+                  <h2 id="render-status-title">{cardTitle}</h2>
+                  <p>{displayStageCopy}</p>
                   {job.filename ? <strong className="render-file-name">{job.filename}</strong> : null}
                   {summaryParts.length ? <span className="render-job-summary">{summaryParts.join(" \u2022 ")}</span> : null}
                 </div>
@@ -615,26 +618,31 @@ export default function Workspace({
                 </div>
               ) : null}
 
-              <DetailGrid
-                rows={[
-                  ["Package ID", packageId],
-                  ["Submitted", submittedTime],
-                  ["Current stage", currentStage],
-                  ["Estimated next step", estimatedNextStep],
-                ]}
-              />
+              <dl className="render-status-facts" aria-label="Current render facts">
+                <div><dt>Job ID</dt><dd>{packageId}</dd></div>
+                <div><dt>State</dt><dd>{displayStage}</dd></div>
+                <div><dt>Frames</dt><dd>{frameCount && renderedCount != null ? `${renderedCount} of ${frameCount}` : frameCount ?? "Waiting"}</dd></div>
+                <div><dt>Current frame</dt><dd>{currentFrame ?? (status === "running" ? "Waiting for data" : "Not active")}</dd></div>
+                <div><dt>ETA</dt><dd>{etaLabel}</dd></div>
+                {nodeLabel ? <div><dt>Assigned node</dt><dd>{nodeLabel}</dd></div> : null}
+                <div><dt>Download</dt><dd>{downloadReadiness}</dd></div>
+                <div><dt>Receipt</dt><dd>{receiptReadiness}</dd></div>
+              </dl>
 
               <JourneyTimeline states={journeyStates} includePaymentStep />
 
               {status === "running" ? (
-                <div className="render-progress-compact">
+                <div className="render-progress-compact" aria-label="Render progress">
                   <div className="render-progress-row">
-                    <span>{progressPct == null ? "Waiting for first frame..." : progressText}</span>
-                    {Number.isInteger(job?.progress_percent) ? <b>{Math.round(Number(job?.progress_percent))}%</b> : null}
+                    <span>{progressPct == null ? "Waiting for completed-frame data" : progressText}</span>
+                    {progressPct != null ? <b>{Math.round(progressPct)}%</b> : <b>Estimating</b>}
                   </div>
                   <div
                     className={`render-progress-bar ${progressPct == null ? "render-progress-bar-waiting" : ""}`}
-                    aria-label="Frame progress"
+                    role={progressPct == null ? undefined : "progressbar"}
+                    aria-valuemin={progressPct == null ? undefined : 0}
+                    aria-valuemax={progressPct == null ? undefined : 100}
+                    aria-valuenow={progressPct == null ? undefined : Math.round(progressPct)}
                   >
                     {progressPct == null ? <span /> : <span style={{ width: `${progressPct}%` }} />}
                   </div>
@@ -690,10 +698,19 @@ export default function Workspace({
                 </button>
               ) : null}
 
-              {status === "running" ? (
+              {status === "running" && !hasOutput ? (
                 <button className="pj-btn render-disabled-action" type="button" disabled>
-                  Your package is being prepared by a render partner.
+                  Rendering in progress
                 </button>
+              ) : null}
+
+              {hasOutput && status !== "complete" && status !== "failed" ? (
+                <div className="render-packaging-note" role="status">
+                  <div>
+                    <strong>Preparing your download</strong>
+                    <span>Output exists and is being packaged. Download and receipt actions will appear only when they are ready.</span>
+                  </div>
+                </div>
               ) : null}
 
               {status === "complete" ? (
@@ -718,22 +735,26 @@ export default function Workspace({
                     View delivery receipt
                       </a>
                     ) : null}
+                    <Link className="pj-btn" href="/#dropzone" prefetch={false}>Render another package</Link>
                     {job.output_sha256 ? <span className="render-verified-badge">Verify receipt • SHA-256 verified</span> : null}
                   </div>
+                  {downloadReadiness !== "Ready" || receiptReadiness !== "Ready" ? (
+                    <p className="render-note" role="status">Final files are still being prepared. This page updates automatically.</p>
+                  ) : null}
                 </div>
               ) : null}
 
               {status === "failed" ? (
-                <>
-                  <p className="render-note">
-                    Try again and Farpy will route your package to another available render partner.
-                    <br />
-                    If no delivery receipt was created, the completed-render charge is returned.
-                  </p>
-                  <div className="render-actions">
-                    <a className="pj-btn pj-btn--blue" href="/">Send package again</a>
+                <div className="render-failure-panel" role="alert">
+                  <div>
+                    <strong>Delivery was not completed</strong>
+                    <p>{failure.message}</p>
+                    {paymentOutcome ? <span>Payment status: {paymentOutcome}</span> : null}
                   </div>
-                </>
+                  <div className="render-actions">
+                    <Link className="pj-btn pj-btn--blue" href="/#dropzone" prefetch={false}>Render again</Link>
+                  </div>
+                </div>
               ) : null}
 
               <details className="render-details">

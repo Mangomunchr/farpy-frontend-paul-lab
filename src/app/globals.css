@@ -4288,6 +4288,35 @@ code.api-inline {
   background: var(--danger-tint);
   color: var(--danger);
 }
+.render-stage-pill {
+  width: fit-content;
+  padding: .3rem .6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-2);
+  color: var(--ink-2);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.render-stage-pill-running,
+.render-stage-pill-submitted {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
+  background: var(--accent-tint);
+  color: var(--accent-press);
+}
+.render-stage-pill-complete {
+  border-color: color-mix(in srgb, var(--ok) 22%, var(--line));
+  background: var(--ok-tint);
+  color: var(--ok);
+}
+.render-stage-pill-failed {
+  border-color: color-mix(in srgb, var(--danger) 22%, var(--line));
+  background: var(--danger-tint);
+  color: var(--danger);
+}
 .render-compressed-copy {
   min-width: 0;
   display: grid;
@@ -4400,7 +4429,11 @@ code.api-inline {
 }
 .render-progress-compact {
   display: grid;
-  gap: var(--spacing-2);
+  gap: .65rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+  border-radius: var(--radius-3);
+  background: color-mix(in srgb, var(--accent-tint) 35%, var(--card));
 }
 .render-progress-row b {
   color: var(--ink);
@@ -4411,13 +4444,95 @@ code.api-inline {
   position: relative;
 }
 .render-progress-bar-waiting span {
-  width: 10px;
-  border-radius: 50%;
+  width: 22%;
+  border-radius: inherit;
   animation: render-waiting-dot 1.1s ease-in-out infinite alternate;
 }
 @keyframes render-waiting-dot {
-  from { transform: translateX(0); opacity: 0.45; }
-  to { transform: translateX(30px); opacity: 1; }
+  from { transform: translateX(-15%); opacity: 0.45; }
+  to { transform: translateX(360%); opacity: 1; }
+}
+.render-status-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .65rem;
+  margin: 0;
+}
+.render-status-facts div {
+  min-width: 0;
+  padding: .8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-2);
+  background: var(--paper);
+}
+.render-status-facts dt {
+  margin-bottom: .3rem;
+  color: var(--ink-3);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.render-status-facts dd {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: .78rem;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.render-packaging-note,
+.render-failure-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: var(--radius-3);
+  background: color-mix(in srgb, var(--accent-tint) 32%, var(--card));
+}
+.render-packaging-note strong,
+.render-failure-panel strong { color: var(--ink); }
+.render-packaging-note span,
+.render-failure-panel p,
+.render-failure-panel span {
+  display: block;
+  margin: .25rem 0 0;
+  color: var(--ink-2);
+  font-size: .875rem;
+  line-height: 1.5;
+}
+.render-failure-panel {
+  align-items: flex-start;
+  border-color: color-mix(in srgb, var(--danger) 22%, var(--line));
+  background: color-mix(in srgb, var(--danger-tint) 40%, var(--card));
+}
+.render-complete-actions .pj-btn:focus-visible,
+.render-failure-panel .pj-btn:focus-visible,
+.render-details summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (max-width: 760px) {
+  .render-status-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 375px) {
+  .ws .wrap.render-dashboard { width: min(100% - 1rem, 680px); }
+  .render-status-hero { padding: .9rem; }
+  .render-compressed-top { grid-template-columns: 1fr; }
+  .render-status-icon { width: 48px; height: 48px; }
+  .render-compressed-copy h2 { font-size: 1.75rem; }
+  .render-status-facts { grid-template-columns: 1fr; }
+  .render-packaging-note,
+  .render-failure-panel { flex-direction: column; }
+  .render-failure-panel .render-actions,
+  .render-failure-panel .pj-btn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .render-pulse-dot,
+  .render-progress-bar-waiting span { animation: none; }
 }
 .render-dashboard-grid {
   display: grid;
