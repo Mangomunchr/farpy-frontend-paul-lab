@@ -154,25 +154,23 @@ export default function Home() {
         </section>
 
         <section className="fy-section" aria-labelledby="pillars-title">
+          <div className="fy-startupbase">
+            <div className="fy-startupbase__label">Featured on StartupBase</div>
+            <a
+              href="https://startupbase.io/products/farpy?utm_source=startupbase&utm_medium=badge&utm_campaign=launch-badge-light"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Farpy launched on StartupBase"
+            >
+              <img
+                src="https://statics.startupbase.io/site/badges/launched-on-sb.svg"
+                alt="Launched on StartupBase"
+                height="55"
+                style={{ height: "55px", width: "auto" }}
+              />
+            </a>
+          </div>
           <h2 className="fy-section__title" id="pillars-title">
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", margin: "24px 0 28px" }}>
-              <div style={{ fontSize: "0.82rem", color: "#6b7280", marginBottom: "8px", fontWeight: 600, letterSpacing: ".02em" }}>
-                Featured on StartupBase
-              </div>
-              <a
-                href="https://startupbase.io/products/farpy?utm_source=startupbase&utm_medium=badge&utm_campaign=launch-badge-light"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Farpy launched on StartupBase"
-              >
-                <img
-                  src="https://statics.startupbase.io/site/badges/launched-on-sb.svg"
-                  alt="Launched on StartupBase"
-                  height="55"
-                  style={{ height: "55px", width: "auto" }}
-                />
-              </a>
-            </div>
             Built so you never have to take our word for it.
           </h2>
           <p className="fy-section__sub">
