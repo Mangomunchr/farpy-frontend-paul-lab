@@ -21,6 +21,12 @@
   <link rel="stylesheet" href="/benchmark/farpy-benchmark.css" />
 </head>
 <body>
++<header class="fp-site-header">
+  <nav class="fp-site-nav" aria-label="Primary">
+    <a class="fp-site-brand" href="/" aria-label="Farpy home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6.5" cy="6" r="2.75"></circle><circle cx="17.5" cy="6" r="2.75"></circle><path d="M4.5 13.5a7.5 7.5 0 0 1 15 0c0 4.1-3.36 7-7.5 7s-7.5-2.9-7.5-7Z"></path><circle cx="9.5" cy="13" r="1" fill="currentColor" stroke="none"></circle><circle cx="14.5" cy="13" r="1" fill="currentColor" stroke="none"></circle></svg><span>Farpy</span></a>
+    <div class="fp-site-links"><a href="/">Home</a><a href="/pricing">Pricing</a><a href="/addon">Add-on</a><a href="/api">API</a><a href="/signin">Log in</a><a href="/#start">Send package</a></div>
+  </nav>
+</header>
   <main>
     <p><a href="/benchmark/leaderboard">Back to leaderboard</a></p>
     <h1>Benchmark search</h1>
@@ -33,7 +39,18 @@
       <thead><tr><th>Type</th><th>Result</th><th>Score</th><th>Render</th><th>Samples</th></tr></thead>
       <tbody id="rows"><tr><td colspan="5">Enter a search query.</td></tr></tbody>
     </table>
-  </main>
+</main>
++<footer class="fp-site-footer">
+  <div class="fp-site-footer-inner">
+    <div class="fp-site-footer-brand">Farpy<p>Blender + Octane renders, pay by frame.</p></div>
+    <nav class="fp-site-footer-groups" aria-label="Footer">
+      <div class="fp-site-footer-group"><strong>Product</strong><a href="/pricing">Pricing</a><a href="/addon">Add-on</a><a href="/api">API</a><a href="/downloads">Downloads</a></div>
+      <div class="fp-site-footer-group"><strong>Support</strong><a href="/account">Account</a><a href="/faq">FAQ</a><a href="/contact">Contact</a><a href="/status">Status</a></div>
+      <div class="fp-site-footer-group"><strong>Legal</strong><a href="/terms">Terms &amp; Privacy</a><a href="/refunds">Refunds</a><a href="/acceptable-use">Acceptable Use</a><a href="/dmca">DMCA</a></div>
+    </nav>
+  </div>
+  <p class="fp-site-copyright">(c) 2026 Farpy. All rights reserved.</p>
+</footer>
   <script>
     const API_BASE = localStorage.getItem("farpy_leaderboard_api_base") || "/node/v1/leaderboard";
     const unknown = (value) => value === null || value === undefined || value === "" ? "unknown" : value;
