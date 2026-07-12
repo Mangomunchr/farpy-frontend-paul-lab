@@ -260,7 +260,7 @@ export default function Workspace({
   const [authChecked, setAuthChecked] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [copiedCompletionId, setCopiedCompletionId] = useState(false);
+  const [copiedField, setCopiedField] = useState<"receipt" | "sha256" | null>(null);
 
   const refreshWalletBalance = async (signal?: AbortSignal) => {
     if (!auth.authenticated) {
@@ -384,11 +384,10 @@ export default function Workspace({
     window.location.href = `/signin?next=${encodeURIComponent(current)}`;
   };
 
-  const copyCompletionId = async () => {
-    const value = job?.receipt_id || job?.job_id || jobId;
+  const copyCompletionField = async (field: "receipt" | "sha256", value?: string | null) => {
     if (!value || typeof navigator === "undefined" || !navigator.clipboard) return;
     await navigator.clipboard.writeText(value);
-    setCopiedCompletionId(true);
+    setCopiedField(field);
   };
 
   const frameCount = Number.isInteger(job?.frame_count) ? Number(job?.frame_count) : null;
@@ -416,6 +415,9 @@ export default function Workspace({
       ? Math.min(100, Math.max(0, (renderedCount / frameCount) * 100))
       : null;
   const currentFrame = Number.isInteger(job?.current_frame) ? Number(job?.current_frame) : null;
+  const completedFrameLabel = status === "complete" && frameCount != null
+    ? `Complete (${renderedCount ?? frameCount}/${frameCount})`
+    : null;
   const startedAtMs = job?.started_at ? new Date(job.started_at).getTime() : NaN;
   const elapsedSeconds =
     status === "running" && Number.isFinite(startedAtMs)
@@ -510,11 +512,10 @@ export default function Workspace({
   const paymentResult = paymentOutcome
     || (Number.isInteger(job?.wallet_debit_cents) ? formatCents(job?.wallet_debit_cents) : job?.payment_status === "captured" ? "Paid" : "Unavailable");
   const receiptVerified = Boolean(job?.receipt_id && job?.output_sha256 && job?.can_view_receipt && receiptToken);
-  const completionId = job?.receipt_id || packageId;
   const completedSummaryRows = [
-    ["Frames completed", renderedCount ?? frameCount ?? "Unavailable"],
-    ["Render duration", renderSeconds != null ? formatDuration(renderSeconds) : "Unavailable"],
-    ["GPU / node", nodeLabel || "Unavailable"],
+    ["Frames completed", renderedCount ?? frameCount ?? "Not reported"],
+    ["Render duration", renderSeconds != null ? formatDuration(renderSeconds) : "Not reported"],
+    ["GPU / node", nodeLabel || "Not reported"],
     ["Payment", paymentResult],
     ["File", downloadReadiness],
     ["Receipt", receiptReadiness],
@@ -637,7 +638,7 @@ export default function Workspace({
                 <div><dt>Job ID</dt><dd>{packageId}</dd></div>
                 <div><dt>State</dt><dd>{displayStage}</dd></div>
                 <div><dt>Frames</dt><dd>{frameCount && renderedCount != null ? `${renderedCount} of ${frameCount}` : frameCount ?? "Waiting"}</dd></div>
-                <div><dt>Current frame</dt><dd>{currentFrame ?? (status === "running" ? "Waiting for data" : "Not active")}</dd></div>
+                <div><dt>Current frame</dt><dd>{completedFrameLabel ?? currentFrame ?? (status === "running" ? "Waiting for data" : "Not active")}</dd></div>
                 <div><dt>ETA</dt><dd>{etaLabel}</dd></div>
                 {nodeLabel ? <div><dt>Assigned node</dt><dd>{nodeLabel}</dd></div> : null}
                 <div><dt>Download</dt><dd>{downloadReadiness}</dd></div>
@@ -741,14 +742,26 @@ export default function Workspace({
                     </div>
                   </div>
 
-                  {completionId ? (
+                  {job.receipt_id ? (
                     <div className="render-result-id">
                       <div>
-                        <span>{job.receipt_id ? "Receipt ID" : "Job ID"}</span>
-                        <code>{completionId}</code>
+                        <span>Receipt ID</span>
+                        <code>{job.receipt_id}</code>
                       </div>
-                      <button className="pj-btn pj-btn--tertiary" type="button" onClick={() => void copyCompletionId()}>
-                        {copiedCompletionId ? "Copied" : "Copy ID"}
+                      <button className="pj-btn pj-btn--tertiary" type="button" onClick={() => void copyCompletionField("receipt", job.receipt_id)}>
+                        {copiedField === "receipt" ? "Copied" : "Copy Receipt ID"}
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {job.output_sha256 ? (
+                    <div className="render-result-id">
+                      <div>
+                        <span>SHA-256</span>
+                        <code title={job.output_sha256}>{shortHash(job.output_sha256)}</code>
+                      </div>
+                      <button className="pj-btn pj-btn--tertiary" type="button" onClick={() => void copyCompletionField("sha256", job.output_sha256)}>
+                        {copiedField === "sha256" ? "Copied" : "Copy SHA-256"}
                       </button>
                     </div>
                   ) : null}
@@ -780,7 +793,7 @@ export default function Workspace({
                     ) : (
                       <button className="pj-btn" type="button" disabled>Receipt preparing</button>
                     )}
-                    {receiptVerified ? <span className="render-verified-badge">Receipt verified &middot; SHA-256</span> : null}
+                    {receiptVerified ? <span className="render-verified-badge">Receipt verified &middot; SHA-256 recorded</span> : null}
                   </div>
                   <nav className="render-complete-secondary" aria-label="Completed render options">
                     <Link href="/#dropzone" prefetch={false}>Render another package</Link>
