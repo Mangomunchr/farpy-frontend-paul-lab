@@ -57,6 +57,25 @@ const valueText = (value: unknown) => {
   return String(value);
 };
 
+const count = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const conversion = (from: number, to: number) => {
+  if (from === 0) return "Not applicable";
+  return `${((to / from) * 100).toFixed(1)}%`;
+};
+
+const ageText = (value?: string) => {
+  if (!value) return "Not loaded";
+  const age = Date.now() - Date.parse(value);
+  if (!Number.isFinite(age) || age < 0) return value;
+  if (age < 60_000) return "Updated less than a minute ago";
+  if (age < 3_600_000) return `Updated ${Math.floor(age / 60_000)} minutes ago`;
+  return `Stale: updated ${Math.floor(age / 3_600_000)} hours ago`;
+};
+
 const shortHash = (value: unknown) => {
   const text = String(value || "");
   return text.length > 14 ? `${text.slice(0, 10)}...` : valueText(value);
@@ -156,6 +175,7 @@ export function OpsCommandCenter() {
   const [summary, setSummary] = useState<OpsSummary | null>(null);
   const [privateStatus, setPrivateStatus] = useState("Operator token required for private metrics.");
   const [ackStatus, setAckStatus] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -186,8 +206,17 @@ export function OpsCommandCenter() {
   }, [summary]);
 
   const activeAlertRows = alertRows.filter((row) => row.resolved !== true);
+  const recentJobs = summary?.recent?.jobs || [];
+  const recentSubmitted = recentJobs.length;
+  const recentCompleted = recentJobs.filter((job) => job.status === "complete").length;
+  const recentFailed = recentJobs.filter((job) => job.status === "failed").length;
+  const receiptJobIds = new Set((summary?.recent?.receipts || []).map((receipt) => String(receipt.job_id || "")).filter(Boolean));
+  const recentDelivered = recentJobs.filter((job) => job.status === "complete" && receiptJobIds.has(String(job.job_id || ""))).length;
+  const completedToday = count(summary?.render?.jobs_completed_today);
+  const failedToday = count(summary?.render?.failed_today);
 
   async function loadSummary() {
+    setLoading(true);
     setPrivateStatus("Loading private metrics...");
     setSummary(null);
     try {
@@ -205,6 +234,8 @@ export function OpsCommandCenter() {
       setPrivateStatus(`Loaded ${json.generated_at}`);
     } catch (error) {
       setPrivateStatus(`No data: ${error instanceof Error ? error.message : "request failed"}`);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -251,24 +282,87 @@ export function OpsCommandCenter() {
               Read-only production monitoring. Private metrics require the operator token; unavailable widgets say no data.
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(event) => { event.preventDefault(); void loadSummary(); }}>
+            <label className="sr-only" htmlFor="ops-token">Operator token</label>
             <input
-              aria-label="Operator token"
+              autoComplete="current-password"
               className="h-10 min-w-[260px] rounded-[8px] border border-line bg-card px-3 text-sm text-ink outline-none focus:border-accent"
+              id="ops-token"
               onChange={(event) => setToken(event.target.value)}
               placeholder="Operator token"
               type="password"
               value={token}
             />
             <button
-              className="h-10 min-w-[110px] whitespace-nowrap rounded-[8px] bg-ink px-4 text-sm font-semibold text-white"
-              onClick={loadSummary}
-              type="button"
+              className="h-10 min-w-[110px] whitespace-nowrap rounded-[8px] bg-ink px-4 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
+              disabled={loading}
+              type="submit"
             >
-              Refresh
+              {loading ? "Loading…" : "Refresh"}
             </button>
-          </div>
+          </form>
         </header>
+
+        <section className="mt-5" aria-labelledby="ops-overview-title" aria-live="polite" aria-busy={loading}>
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">Today</p>
+              <h2 className="font-display text-xl font-semibold text-ink" id="ops-overview-title">Business overview</h2>
+            </div>
+            <p className="text-sm text-ink-3">{summary ? ageText(summary.generated_at) : privateStatus}</p>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Revenue", summary ? money(summary.financial?.revenue_today_cents) : "Unavailable"],
+              ["Completed renders", completedToday ?? "Unavailable"],
+              ["Recent completion rate", summary ? conversion(recentSubmitted, recentCompleted) : "Unavailable"],
+              ["Failures", failedToday ?? "Unavailable"],
+            ].map(([label, value]) => (
+              <div className="rounded-[8px] border border-line bg-card p-4 shadow-sm" key={label}>
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums text-ink">{value}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-[8px] border border-line bg-card p-4 shadow-sm" aria-labelledby="ops-funnel-title">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="font-display text-lg font-semibold text-ink" id="ops-funnel-title">Operations funnel</h2>
+              <p className="mt-1 text-sm text-ink-3">Recent job conversions use the private API’s current sample of up to 20 jobs.</p>
+            </div>
+            {summary ? <span className="rounded-full bg-[#ecf4ee] px-2 py-1 text-xs font-semibold text-[#108548]">PRIVATE DATA LOADED</span> : null}
+          </div>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[600px] text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.08em] text-ink-3">
+                <tr><th className="border-b border-line py-2 pr-3 font-medium">Stage</th><th className="border-b border-line py-2 pr-3 font-medium">Count</th><th className="border-b border-line py-2 pr-3 font-medium">Conversion</th><th className="border-b border-line py-2 font-medium">Coverage</th></tr>
+              </thead>
+              <tbody>
+                {[
+                  ["Visitors", "Unavailable", "Unavailable", "No visitor aggregate in ops API"],
+                  ["Signups", "Unavailable", "Unavailable", "No signup aggregate in ops API"],
+                  ["Top-up views", "Unavailable", "Unavailable", "No view events in ops API"],
+                  ["Checkout starts", "Unavailable", "Unavailable", "No checkout-start aggregate in ops API"],
+                  ["Successful top-ups", "Unavailable", "Unavailable", "Credits include non-top-up transactions"],
+                  ["Render submissions", summary ? recentSubmitted : "Unavailable", "Baseline", "Recent sample"],
+                  ["Completed renders", summary ? recentCompleted : "Unavailable", summary ? conversion(recentSubmitted, recentCompleted) : "Unavailable", "Recent sample"],
+                  ["Receipts", summary ? recentDelivered : "Unavailable", summary ? conversion(recentCompleted, recentDelivered) : "Unavailable", "Matched to recent completed jobs"],
+                  ["Downloads", "Unavailable", "Unavailable", "Downloads are not tracked by ops API"],
+                ].map(([stage, total, rate, coverage]) => (
+                  <tr className="border-b border-line last:border-0" key={stage}>
+                    <th className="py-2 pr-3 font-medium text-ink" scope="row">{stage}</th>
+                    <td className="py-2 pr-3 tabular-nums text-ink-2">{total}</td>
+                    <td className="py-2 pr-3 tabular-nums text-ink-2">{rate}</td>
+                    <td className="py-2 text-ink-3">{coverage}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {summary ? <p className="mt-3 text-sm text-ink-3">Recent failures: <strong className="text-ink">{recentFailed}</strong>. Revenue is shown separately because it uses the current UTC day rather than the recent-job sample.</p> : null}
+        </section>
 
         <section className="mt-5 rounded-[8px] border border-line bg-card p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -369,7 +463,7 @@ export function OpsCommandCenter() {
             ]}
           />
           <SimpleTable
-            title="Last 20 Jobs"
+            title="Live activity · last 20 jobs"
             rows={summary?.recent?.jobs || []}
             columns={[
               ["job_id", "Job"],
