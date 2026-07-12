@@ -40,8 +40,15 @@ function Get-StageRelSet {
 function Invoke-StaticGuard {
   param([string]$Mode, [string]$OutRoot, [string]$Output)
   $guard = Join-Path $RepoRoot "scripts\static-preservation-guard-v1.ps1"
-  & powershell -NoProfile -ExecutionPolicy Bypass -File $guard -Mode $Mode -ProductionHost $ProductionHost -ProductionRoot $ProductionRoot -LocalOut $OutRoot -ManifestPath $ManifestPath -OutputPath $Output
-  $code = $LASTEXITCODE
+  $guardLf = Join-Path ([System.IO.Path]::GetTempPath()) ("static-preservation-guard-v1-{0}.ps1" -f [guid]::NewGuid().ToString("N"))
+  $guardText = (Get-Content -LiteralPath $guard -Raw).Replace("`r`n", "`n").Replace("`r", "`n")
+  [System.IO.File]::WriteAllText($guardLf, $guardText, [System.Text.UTF8Encoding]::new($false))
+  try {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $guardLf -Mode $Mode -ProductionHost $ProductionHost -ProductionRoot $ProductionRoot -LocalOut $OutRoot -ManifestPath $ManifestPath -OutputPath $Output
+    $code = $LASTEXITCODE
+  } finally {
+    Remove-Item -LiteralPath $guardLf -Force -ErrorAction SilentlyContinue
+  }
   if (Test-Path -LiteralPath $Output) {
     return [ordered]@{ exit_code = $code; output = (Get-Content -LiteralPath $Output -Raw | ConvertFrom-Json) }
   }
