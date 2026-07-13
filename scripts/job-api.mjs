@@ -1,8 +1,8 @@
 ﻿import { createServer } from "node:http";
 import { execFile } from "node:child_process";
-import { appendFile, mkdir, readFile, readdir, stat, statfs, writeFile } from "node:fs/promises";
+import { appendFile, copyFile, mkdir, readFile, readdir, stat, statfs, unlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { createReadStream } from "node:fs";
+import { constants as fsConstants, createReadStream } from "node:fs";
 import path from "node:path";
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
@@ -47,6 +47,10 @@ const OPS_WORKER_STALE_MS = Number(process.env.FARPY_OPS_WORKER_STALE_MS || 60 *
 const OPS_QUEUE_WARN_THRESHOLD = Number(process.env.FARPY_OPS_QUEUE_WARN_THRESHOLD || Math.max(1, Math.floor(QUEUE_CAP * 0.8)));
 const OPS_DISK_WARN_PERCENT = Number(process.env.FARPY_OPS_DISK_WARN_PERCENT || 90);
 const OPS_INODE_WARN_PERCENT = Number(process.env.FARPY_OPS_INODE_WARN_PERCENT || 90);
+const CORE_JOB_DIR = path.resolve(process.env.FARPY_CORE_JOB_STORE_DIR || (IS_PRODUCTION ? "/var/lib/farpy/jobs" : (DATA_DIR ? path.join(DATA_DIR, "core-jobs") : ".farpy-core-jobs")));
+const CORE_QUEUE_FILE = path.resolve(process.env.FARPY_CORE_QUEUE_FILE || path.join(CORE_JOB_DIR, "queue.jsonl"));
+const CORE_UPLOAD_DIR = path.resolve(process.env.FARPY_CORE_UPLOAD_STORE_DIR || (IS_PRODUCTION ? "/opt/farpy/uploads" : (DATA_DIR ? path.join(DATA_DIR, "core-uploads") : ".farpy-core-uploads")));
+const CORE_UPLOAD_BASE_URL = (process.env.FARPY_CORE_UPLOAD_BASE_URL || "https://api.farpy.com/real-upload").replace(/\/+$/, "");
 
 const send = (res, status, body) => {
   const json = JSON.stringify(body);
@@ -708,6 +712,124 @@ const ensureUploadedFile = (job) => {
   return { ok: true };
 };
 
+const coreQueueHasJob = async (jobId) => {
+  if (!existsSync(CORE_QUEUE_FILE)) return false;
+  const rows = (await readFile(CORE_QUEUE_FILE, "utf8")).split(/\r?\n/).filter(Boolean);
+  return rows.some((line) => {
+    if (line === jobId) return true;
+    try { return String(JSON.parse(line)?.job_id || "") === jobId; } catch { return false; }
+  });
+};
+
+const enqueueCoreRenderJob = async (job) => {
+  await mkdir(CORE_JOB_DIR, { recursive: true });
+  await mkdir(path.dirname(CORE_QUEUE_FILE), { recursive: true });
+  await mkdir(CORE_UPLOAD_DIR, { recursive: true });
+
+  const lockPath = path.join(CORE_JOB_DIR, `.web-render-enqueue-${job.job_id}.lock`);
+  try {
+    await writeFile(lockPath, `${process.pid}\n`, { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    if (error?.code === "EEXIST") {
+      const existing = path.join(CORE_JOB_DIR, `${job.job_id}.json`);
+      if (existsSync(existing)) return { ok: true, duplicate: true };
+      return { ok: false, status: 409, error: "core_enqueue_in_progress" };
+    }
+    throw error;
+  }
+
+  try {
+    const extension = path.extname(job.filename || job.upload?.stored_path || "") || ".blend";
+    const coreUploadName = `${job.upload_id}${extension.toLowerCase()}`;
+    const coreUploadPath = path.join(CORE_UPLOAD_DIR, coreUploadName);
+    if (!existsSync(coreUploadPath)) {
+      try {
+        await copyFile(job.upload.stored_path, coreUploadPath, fsConstants.COPYFILE_EXCL);
+      } catch (error) {
+        if (error?.code !== "EEXIST") throw error;
+      }
+    }
+
+    const frames = Array.from(
+      { length: job.frame_count || 1 },
+      (_, index) => Number(job.frame_start || 1) + index,
+    );
+    const inputUrl = `${CORE_UPLOAD_BASE_URL}/${encodeURIComponent(coreUploadName)}`;
+    const coreJob = {
+      job_id: job.job_id,
+      state: "QUEUED",
+      status: "QUEUED",
+      type: "render",
+      engine: job.renderer || "blender",
+      required_capability: "gpu",
+      input_url: inputUrl,
+      scene_url: inputUrl,
+      filename: job.filename,
+      frames,
+      job: { type: "render", engine: job.renderer === "octane" ? "octane" : "cycles", frames },
+      amount_cents: Number(job.wallet_debit_cents ?? job.price_cents ?? 0),
+      farpy_user: job.user_id || job.email,
+      ts_utc: job.submitted_at || new Date().toISOString(),
+      render_request_id: job.render_request_id,
+      web_render_job_id: job.job_id,
+      web_render_upload_id: job.upload_id,
+      web_render_upload_path: job.upload.stored_path,
+      payment_status: job.payment_status,
+      payment_mode: job.payment_mode || null,
+    };
+    const coreJobPath = path.join(CORE_JOB_DIR, `${job.job_id}.json`);
+    try {
+      await writeFile(coreJobPath, JSON.stringify(coreJob, null, 2), { encoding: "utf8", flag: "wx" });
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+    }
+    if (!(await coreQueueHasJob(job.job_id))) {
+      await appendFile(CORE_QUEUE_FILE, `${job.job_id}\n`, "utf8");
+    }
+    return { ok: true, duplicate: false, input_url: inputUrl };
+  } finally {
+    await unlink(lockPath).catch(() => {});
+  }
+};
+
+const syncCoreRenderState = async (job) => {
+  if (!job || !["submitted", "running"].includes(job.status)) return job;
+  const coreJobPath = path.join(CORE_JOB_DIR, `${job.job_id}.json`);
+  if (!existsSync(coreJobPath)) return job;
+  let coreJob;
+  try { coreJob = JSON.parse(await readFile(coreJobPath, "utf8")); } catch { return job; }
+  const state = String(coreJob.state || coreJob.status || "").toUpperCase();
+  const now = new Date().toISOString();
+  let changed = false;
+  if (state === "RUNNING" && job.status !== "running") {
+    job.status = "running";
+    job.started_at = coreJob.claimed_at || coreJob.started_at || now;
+    job.worker_id = coreJob.claimed_by || coreJob.worker_id || null;
+    job.node_id = coreJob.claimed_by || coreJob.node_id || null;
+    changed = true;
+  } else if (state === "DONE" || state === "COMPLETE") {
+    job.status = "complete";
+    job.completed_at = coreJob.completed_at || coreJob.finished_at || now;
+    job.worker_id = coreJob.claimed_by || coreJob.worker_id || job.worker_id || null;
+    job.node_id = coreJob.claimed_by || coreJob.node_id || job.node_id || null;
+    job.core_output_url = coreJob.output_url || null;
+    job.core_receipt_url = coreJob.receipt_url || null;
+    job.output_sha256 = coreJob.output_sha256 || job.output_sha256 || null;
+    changed = true;
+  } else if (state === "FAILED") {
+    job.status = "failed";
+    job.failed_at = coreJob.failed_at || now;
+    job.failure_reason = coreJob.error_detail || coreJob.error || "Render partner failed the package.";
+    job.failure_code = coreJob.error || "core_render_failed";
+    changed = true;
+  }
+  if (!changed) return job;
+  job.updated_at = now;
+  if (job.status === "failed") await refundFailedWalletDebit(job);
+  await saveJob(job);
+  return job;
+};
+
 const submitRender = async (jobId, auth = {}) => {
   const job = await loadJob(jobId);
   if (!job) return { ok: false, status: 404, error: "job_not_found" };
@@ -715,7 +837,12 @@ const submitRender = async (jobId, auth = {}) => {
     job.user_id = auth.user_id;
     job.email = auth.email || null;
   }
-  if (["submitted", "running", "complete"].includes(job.status)) {
+  if (["running", "complete"].includes(job.status)) {
+    return { ok: true, job };
+  }
+  if (job.status === "submitted" && job.payment_status === "captured") {
+    const enqueue = await enqueueCoreRenderJob(job);
+    if (!enqueue.ok) return enqueue;
     return { ok: true, job };
   }
   if (job.payment_status !== "captured") {
@@ -762,6 +889,8 @@ const submitRender = async (jobId, auth = {}) => {
   job.renderer = inferRenderer(job.filename, job.renderer);
   job.render_request_id = job.render_request_id || `RREQ-${randomUUID().slice(0, 8).toUpperCase()}`;
   await saveJob(job);
+  const enqueue = await enqueueCoreRenderJob(job);
+  if (!enqueue.ok) return enqueue;
   return { ok: true, job };
 };
 
@@ -2747,7 +2876,8 @@ const server = createServer(async (req, res) => {
 
     const match = pathname.match(/^\/node\/v1\/jobs\/([^/]+)$/);
     if (req.method === "GET" && match) {
-      const job = await loadJob(decodeURIComponent(match[1]));
+      const storedJob = await loadJob(decodeURIComponent(match[1]));
+      const job = await syncCoreRenderState(storedJob);
       if (!job) return send(res, 404, { ok: false, error: "job_not_found" });
       const progressed = await withProgress(job);
       if (!isAuthenticatedOwner(req, job)) {
