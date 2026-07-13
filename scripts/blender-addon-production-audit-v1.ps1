@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $base = $BaseUrl.TrimEnd("/")
 $results = @()
-$expectedSha = "03B9F6039396C06AB83C87E71F7846975DE661D0F2CA216BC60C0ACC4B14A4BF"
+$expectedSha = "1679B392CE7ECC54C4E9AD31A04A2A92AFF826468CA8383CB7200011117176D5"
 
 function Add-Result {
   param(

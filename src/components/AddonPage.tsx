@@ -18,13 +18,16 @@ export default function AddonPage() {
               workspace, and open the delivery receipt after the package is delivered.
             </p>
             <div className="addon-actions">
-              <a className="btn btn-primary addon-dl" href={ADDON_ZIP_PATH}>
-                Download Blender Add-on
+              <a className="btn btn-primary addon-dl" href={ADDON_ZIP_PATH} download>
+                Download add-on ZIP
               </a>
               <Link className="btn btn-secondary" href="/workspace" prefetch={false}>
                 Open Workspace
               </Link>
             </div>
+            <p className="addon-download-note">
+              Public alpha · tested with Blender 4.1 · install the ZIP directly (do not unzip)
+            </p>
           </div>
         </div>
       </section>
@@ -36,10 +39,15 @@ export default function AddonPage() {
               <section className="legal-section">
                 <h2>Install</h2>
                 <ol>
-                  <li>Download the add-on ZIP.</li>
-                  <li>In Blender, open Preferences, Add-ons, then Install.</li>
-                  <li>Open the Farpy Render Delivery panel.</li>
+                  <li>Download <strong>Farpy-Blender-Addon-unified.zip</strong>. Keep it zipped.</li>
+                  <li>In Blender, open <strong>Edit → Preferences → Add-ons → Install</strong>.</li>
+                  <li>Select the downloaded ZIP, then enable <strong>Farpy Render Delivery</strong>.</li>
+                  <li>Open the Farpy panel in the 3D View sidebar and send a small test scene first.</li>
                 </ol>
+                <p>
+                  Updating? Remove or disable the older Farpy add-on first, restart Blender, then
+                  install this ZIP.
+                </p>
               </section>
 
               <section className="legal-section">
@@ -55,12 +63,23 @@ export default function AddonPage() {
               <section className="legal-section">
                 <h2>Package support</h2>
                 <ul>
-                  <li>Blender .blend packages supported.</li>
+                  <li>Tested with Blender 4.1 on Windows; other Blender 4.x releases may work but are not yet fully audited.</li>
+                  <li>Blender .blend stills and frame ranges are supported.</li>
                   <li>Existing Octane .orbx packages can be sent as 1-frame still packages. Automatic ORBX export is not included yet.</li>
-                  <li>No secrets are stored in the add-on.</li>
+                  <li>Pricing, payment, tracking, downloads, and receipts continue in your browser workspace.</li>
+                  <li>No browser password is stored in the add-on.</li>
                   <li>Your workspace tracks package delivery from send to render partner to package delivered.</li>
                   <li>Delivery receipts verify completed packages.</li>
                 </ul>
+              </section>
+
+              <section className="legal-section">
+                <h2>Need help?</h2>
+                <p>
+                  Start with a small saved scene that has an active camera. If installation or sending
+                  fails, include your Blender version, operating system, and package ID when you
+                  <Link href="/contact"> contact support</Link>. Do not share private workspace links.
+                </p>
               </section>
 
               <section className="legal-section">

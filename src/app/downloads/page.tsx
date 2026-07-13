@@ -62,7 +62,9 @@ export default function DownloadsPage() {
               <section className="legal-section">
                 <h2>Blender add-on alpha</h2>
                 <p>
-                  <a href="/downloads/Farpy-Blender-Addon-unified.zip">Download Farpy Render Delivery Blender add-on</a>
+                  <a href="/downloads/Farpy-Blender-Addon-unified.zip" download>Download Farpy Render Delivery add-on ZIP</a>
+                  <br />
+                  Tested with Blender 4.1 on Windows. Install the ZIP directly in Blender; do not unzip it.
                   <br />
                   ZIP SHA-256:
                   <br />
