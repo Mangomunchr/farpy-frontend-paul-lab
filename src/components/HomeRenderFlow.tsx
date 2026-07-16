@@ -120,8 +120,8 @@ export default function HomeRenderFlow() {
     setUploading(true);
     setError("");
 
-    const submitFrameStart = inferredRenderer === "octane" ? MIN_FRAME : frames.start;
-    const submitFrameEnd = inferredRenderer === "octane" ? MIN_FRAME : frames.end;
+    const submitFrameStart = frames.start;
+    const submitFrameEnd = frames.end;
     const submitFrameCount = submitFrameEnd - submitFrameStart + 1;
 
     const form = new FormData();
@@ -301,7 +301,7 @@ export default function HomeRenderFlow() {
                     <span>Frames detected</span>
                     {detecting ? (
                       <span>Reading scene&hellip;</span>
-                    ) : frames.detected || renderer === "octane" ? (
+                    ) : frames.detected ? (
                       <span>{frames.count.toLocaleString()}</span>
                     ) : (
                       <input
