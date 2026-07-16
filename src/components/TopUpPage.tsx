@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { resetAnalyticsEventOnce, trackAnalyticsEvent } from "@/lib/analytics";
 
 type WalletBalance = {
   ok?: boolean;
@@ -83,6 +84,8 @@ export default function TopUpPage({ embedded = false }: TopUpPageProps = {}) {
     }).catch(() => null);
     const json = (await res?.json().catch(() => ({}))) as { checkout_url?: string; error?: string };
     if (res?.ok && json.checkout_url) {
+      resetAnalyticsEventOnce("topup_completed", "stripe-success");
+      trackAnalyticsEvent("topup_started", { price_cents: amount_cents, status: "card" });
       window.location.href = json.checkout_url;
       return;
     }
@@ -102,6 +105,8 @@ export default function TopUpPage({ embedded = false }: TopUpPageProps = {}) {
     }).catch(() => null);
     const json = (await res?.json().catch(() => ({}))) as { checkout_url?: string; error?: string };
     if (res?.ok && json.checkout_url) {
+      const amount = BITCOIN_TOPUP_TIERS.find((item) => item.tier === tier)?.amount_cents;
+      trackAnalyticsEvent("topup_started", { price_cents: amount, status: "bitcoin" });
       window.location.href = json.checkout_url;
       return;
     }
@@ -120,6 +125,8 @@ export default function TopUpPage({ embedded = false }: TopUpPageProps = {}) {
     }).catch(() => null);
     const json = (await res?.json().catch(() => ({}))) as { checkout_url?: string; error?: string };
     if (res?.ok && json.checkout_url) {
+      const amount = LIGHTNING_TOPUP_TIERS.find((item) => item.tier === tier)?.amount_cents;
+      trackAnalyticsEvent("topup_started", { price_cents: amount, status: "lightning" });
       window.location.href = json.checkout_url;
       return;
     }

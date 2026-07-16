@@ -4,6 +4,7 @@ import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { WEB_RENDER_API_BASE } from "@/lib/webRenderApi";
 import { formatRendererName } from "@/lib/worldLanguage";
+import { trackAnalyticsEvent, trackAnalyticsEventOnce } from "@/lib/analytics";
 
 type Receipt = {
   receipt_id?: string;
@@ -132,6 +133,12 @@ export default function ReceiptPage() {
         setReceipt(json);
         setRawJson(JSON.stringify(json, null, 2));
         setError("");
+        trackAnalyticsEventOnce("receipt_viewed", jobId, {
+          frame_count: json.rendered_file_count ?? json.frame_count,
+          renderer: json.renderer,
+          price_cents: json.wallet_debit_cents ?? json.cost_cents,
+          status: "complete",
+        });
       })
       .catch((err: Error) => {
         if (!alive || err.name === "AbortError") return;
@@ -236,7 +243,16 @@ export default function ReceiptPage() {
 
               <div className="receipt-page-actions">
                 {downloadUrl ? (
-                  <a className="pj-btn pj-btn--blue render-download-primary" href={downloadUrl}>
+                  <a
+                    className="pj-btn pj-btn--blue render-download-primary"
+                    href={downloadUrl}
+                    onClick={() => trackAnalyticsEvent("render_downloaded", {
+                      frame_count: receipt.rendered_file_count ?? receipt.frame_count,
+                      renderer: receipt.renderer,
+                      price_cents: receipt.wallet_debit_cents ?? receipt.cost_cents,
+                      status: "complete",
+                    })}
+                  >
                     <span>Download ZIP</span>
                     {outputMeta ? <small>{outputMeta}</small> : null}
                   </a>

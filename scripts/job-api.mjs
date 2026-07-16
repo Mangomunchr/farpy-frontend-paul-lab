@@ -1,6 +1,6 @@
 ﻿import { createServer } from "node:http";
 import { execFile } from "node:child_process";
-import { appendFile, copyFile, mkdir, readFile, readdir, stat, statfs, unlink, writeFile } from "node:fs/promises";
+import { appendFile, copyFile, mkdir, readFile, readdir, rename, stat, statfs, unlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { constants as fsConstants, createReadStream } from "node:fs";
 import path from "node:path";
@@ -18,6 +18,7 @@ const RECEIPT_DIR = path.resolve(process.env.FARPY_RECEIPT_STORE_DIR || (DATA_DI
 const WALLET_DIR = path.resolve(process.env.FARPY_WALLET_STORE_DIR || (DATA_DIR ? path.join(DATA_DIR, "wallet") : ".farpy-wallet"));
 const WORK_DIR = path.resolve(process.env.FARPY_WORK_DIR || (DATA_DIR ? path.join(DATA_DIR, "work") : ".farpy-work"));
 const WORKER_STATUS_PATH = path.resolve(process.env.FARPY_WORKER_STATUS_PATH || (DATA_DIR ? path.join(DATA_DIR, "worker-status.json") : ".farpy-worker-status.json"));
+const ARTIFACT_WORKER_STATUS_PATH = path.resolve(process.env.FARPY_ARTIFACT_WORKER_STATUS_PATH || (DATA_DIR ? path.join(DATA_DIR, "artifact-worker-status.json") : ".farpy-artifact-worker-status.json"));
 const NODE_PAIR_STORE_FILE = process.env.FARPY_NODE_PAIR_STORE_FILE ? path.resolve(process.env.FARPY_NODE_PAIR_STORE_FILE) : "";
 const NODE_PAIR_STORE_DIR = path.resolve(process.env.FARPY_NODE_PAIR_STORE_DIR || process.env.FARPY_NODE_STORE_DIR || (DATA_DIR ? path.join(DATA_DIR, "nodes") : ".farpy-nodes"));
 const NODE_PAIR_SQLITE = process.env.FARPY_NODE_PAIR_SQLITE ? path.resolve(process.env.FARPY_NODE_PAIR_SQLITE) : "";
@@ -43,7 +44,21 @@ const BASE_RENDER_TIMEOUT_SECONDS = Number(process.env.FARPY_BASE_RENDER_TIMEOUT
 const PER_FRAME_RENDER_TIMEOUT_SECONDS = Number(process.env.FARPY_PER_FRAME_RENDER_TIMEOUT_SECONDS || 180);
 const OPS_ALERT_ACK_PATH = path.resolve(process.env.FARPY_OPS_ALERT_ACK_PATH || (DATA_DIR ? path.join(DATA_DIR, "ops-alert-acks.json") : ".farpy-ops-alert-acks.json"));
 const OPS_SUBMITTED_STUCK_MS = Number(process.env.FARPY_OPS_SUBMITTED_STUCK_MS || 5 * 60 * 1000);
+const BUNNY_PLAN_PATH = path.resolve(process.env.FARPY_BUNNY_UPLOAD_PLAN_PATH || "/opt/farpy/storage/bunny-upload-plan.json");
+const BUNNY_MAP_PATH = path.resolve(process.env.FARPY_BUNNY_UPLOAD_MAP_PATH || "/opt/farpy/storage/bunny-upload-map.json");
+const BUNNY_BATCH_PATH = path.resolve(process.env.FARPY_BUNNY_UPLOAD_BATCH_PATH || "/opt/farpy/storage/bunny-upload-batch.json");
+const BUNNY_STORAGE_ZONE = String(process.env.FARPY_BUNNY_STORAGE_ZONE || "").trim();
+const BUNNY_STORAGE_KEY = String(process.env.FARPY_BUNNY_STORAGE_KEY || process.env.BUNNY_STORAGE_API_KEY || "").trim();
+const BUNNY_STORAGE_HOST = String(process.env.FARPY_BUNNY_STORAGE_HOST || "storage.bunnycdn.com").trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+const BUNNY_STORAGE_PROTOCOL = process.env.FARPY_BUNNY_STORAGE_PROTOCOL === "http" ? "http" : "https";
+const BUNNY_PUBLIC_BASE_URL = String(process.env.FARPY_BUNNY_PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+const ARTIFACT_RETRY_BASE_MS = Number(process.env.FARPY_ARTIFACT_RETRY_BASE_MS || 30_000);
+const ARTIFACT_RETRY_MAX_MS = Number(process.env.FARPY_ARTIFACT_RETRY_MAX_MS || 30 * 60_000);
+const ARTIFACT_LOCAL_CLEANUP_DELAY_MS = Number(process.env.FARPY_ARTIFACT_LOCAL_CLEANUP_DELAY_MS || 5 * 60_000);
 const OPS_WORKER_STALE_MS = Number(process.env.FARPY_OPS_WORKER_STALE_MS || 60 * 1000);
+const OPS_NODE_OFFLINE_MS = Number(process.env.FARPY_OPS_NODE_OFFLINE_MS || 60 * 1000);
+const QUEUE_EXPIRY_MS = 30 * 60 * 1000;
+const QUEUE_EXPIRY_SWEEP_MS = Number(process.env.FARPY_QUEUE_EXPIRY_SWEEP_MS || 60 * 1000);
 const OPS_QUEUE_WARN_THRESHOLD = Number(process.env.FARPY_OPS_QUEUE_WARN_THRESHOLD || Math.max(1, Math.floor(QUEUE_CAP * 0.8)));
 const OPS_DISK_WARN_PERCENT = Number(process.env.FARPY_OPS_DISK_WARN_PERCENT || 90);
 const OPS_INODE_WARN_PERCENT = Number(process.env.FARPY_OPS_INODE_WARN_PERCENT || 90);
@@ -51,6 +66,8 @@ const CORE_JOB_DIR = path.resolve(process.env.FARPY_CORE_JOB_STORE_DIR || (IS_PR
 const CORE_QUEUE_FILE = path.resolve(process.env.FARPY_CORE_QUEUE_FILE || path.join(CORE_JOB_DIR, "queue.jsonl"));
 const CORE_UPLOAD_DIR = path.resolve(process.env.FARPY_CORE_UPLOAD_STORE_DIR || (IS_PRODUCTION ? "/opt/farpy/uploads" : (DATA_DIR ? path.join(DATA_DIR, "core-uploads") : ".farpy-core-uploads")));
 const CORE_UPLOAD_BASE_URL = (process.env.FARPY_CORE_UPLOAD_BASE_URL || "https://api.farpy.com/real-upload").replace(/\/+$/, "");
+const CORE_OUTPUT_DIR = path.resolve(process.env.FARPY_CORE_OUTPUT_STORE_DIR || (IS_PRODUCTION ? "/opt/farpy/outputs" : (DATA_DIR ? path.join(DATA_DIR, "core-outputs") : ".farpy-core-outputs")));
+const CORE_RECEIPT_DIR = path.resolve(process.env.FARPY_CORE_RECEIPT_STORE_DIR || (IS_PRODUCTION ? "/opt/farpy/www/receipts_public" : (DATA_DIR ? path.join(DATA_DIR, "core-receipts") : ".farpy-core-receipts")));
 
 const send = (res, status, body) => {
   const json = JSON.stringify(body);
@@ -137,6 +154,34 @@ const safeTokenEqual = (a, b) => {
   return left.length > 0 && left.length === right.length && timingSafeEqual(left, right);
 };
 const validUploadName = (filename) => /\.(blend|orbx)$/i.test(filename);
+
+const bunnyConfigured = () => !!(BUNNY_STORAGE_ZONE && BUNNY_STORAGE_KEY && BUNNY_PUBLIC_BASE_URL);
+const bunnyRemoteUrl = (remotePath) => `${BUNNY_STORAGE_PROTOCOL}://${BUNNY_STORAGE_HOST}/${encodeURIComponent(BUNNY_STORAGE_ZONE)}/${String(remotePath).split("/").map(encodeURIComponent).join("/")}`;
+const bunnyPublicUrl = (remotePath) => `${BUNNY_PUBLIC_BASE_URL}/${String(remotePath).split("/").map(encodeURIComponent).join("/")}`;
+const retryDelayMs = (attempts) => Math.min(ARTIFACT_RETRY_MAX_MS, ARTIFACT_RETRY_BASE_MS * (2 ** Math.max(0, attempts - 1)));
+const acquireDeliveryLock = async (lockPath) => {
+  try {
+    await writeFile(lockPath, `${process.pid}\n`, { encoding: "utf8", flag: "wx" });
+    return true;
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+  }
+  const owner = Number(String(await readFile(lockPath, "utf8").catch(() => "")).trim());
+  if (Number.isInteger(owner) && owner > 0) {
+    try {
+      process.kill(owner, 0);
+      return false;
+    } catch {}
+  }
+  await unlink(lockPath).catch(() => {});
+  try {
+    await writeFile(lockPath, `${process.pid}\n`, { encoding: "utf8", flag: "wx" });
+    return true;
+  } catch (error) {
+    if (error?.code === "EEXIST") return false;
+    throw error;
+  }
+};
 
 const parseCookies = (header) => {
   const out = {};
@@ -308,12 +353,30 @@ const publicAccountRenders = async (userId) => {
       payment_mode: job.payment_mode || null,
       created_at: job.created_at,
       completed_at: job.completed_at,
-      can_download: !!job.output_path && existsSync(job.output_path),
-      can_view_receipt: !!job.receipt_path && existsSync(job.receipt_path),
-      download_url: job.output_path && existsSync(job.output_path)
+      render_seconds: Number.isFinite(Number(job.render_seconds)) ? Number(job.render_seconds) : null,
+      frame_count: Number.isInteger(job.frame_count) ? job.frame_count : null,
+      rendered_frame_count: Number.isInteger(job.rendered_frame_count) ? job.rendered_frame_count : null,
+      rendered_file_count: Number.isInteger(job.rendered_file_count) ? job.rendered_file_count : null,
+      renderer: job.renderer || job.engine || null,
+      gpu_model: job.gpu_model || job.render_device || null,
+      node_id: job.node_id || job.worker_id || null,
+      output_size_bytes: Number.isFinite(Number(job.output_size_bytes)) ? Number(job.output_size_bytes) : null,
+      output_sha256: job.output_sha256 || null,
+      receipt_id: job.receipt_id || null,
+      artifact_delivery: job.artifact_delivery ? {
+        provider: job.artifact_delivery.provider || null,
+        state: job.artifact_delivery.state || null,
+        attempts: Number(job.artifact_delivery.attempts || 0),
+        verified_at: job.artifact_delivery.verified_at || null,
+        cleanup_after: job.artifact_delivery.cleanup_after || null,
+        last_error: job.artifact_delivery.last_error || null,
+      } : null,
+      can_download: (!!job.output_path && existsSync(job.output_path)) || !!job.artifact_delivery?.output?.url,
+      can_view_receipt: (!!job.receipt_path && existsSync(job.receipt_path)) || !!job.artifact_delivery?.receipt?.url,
+      download_url: (job.output_path && existsSync(job.output_path)) || job.artifact_delivery?.output?.url
         ? `/node/v1/web-render/jobs/${encodeURIComponent(job.job_id)}/download?token=${encodeURIComponent(job.download_token || "")}`
         : null,
-      receipt_url: job.receipt_path && existsSync(job.receipt_path)
+      receipt_url: (job.receipt_path && existsSync(job.receipt_path)) || job.artifact_delivery?.receipt?.url
         ? `/node/v1/web-render/jobs/${encodeURIComponent(job.job_id)}/receipt?token=${encodeURIComponent(job.receipt_token || "")}`
         : null,
     }));
@@ -418,7 +481,7 @@ const hasDeliveryArtifact = (job) =>
   );
 
 const refundFailedWalletDebit = async (job) => {
-  if (!job || job.status !== "failed") return null;
+  if (!job || !["failed", "cancelled", "expired"].includes(job.status)) return null;
   if (!job.user_id) return null;
   const amount = Number(job.wallet_debit_cents || 0);
   if (!Number.isInteger(amount) || amount <= 0) return null;
@@ -445,7 +508,7 @@ const refundFailedWalletDebit = async (job) => {
     type: "refund",
     amount_cents: amount,
     job_id: job.job_id,
-    source: "failed_web_render_no_delivery",
+    source: `${job.status}_web_render_no_delivery`,
   });
   job.wallet_refund_cents = refund.transaction.amount_cents;
   job.wallet_refund_event_id = refund.transaction.event_id;
@@ -561,12 +624,14 @@ const createJob = async (body) => {
     nodemuncher_smoke: body.nodemuncher_smoke === true ? true : undefined,
   };
   await saveJob(job);
+  const enqueue = await enqueueCoreRenderJob(job);
+  if (!enqueue.ok) return enqueue;
   return job;
 };
 
 const statusMeta = (job) => {
-  const outputExists = !!job.output_path && existsSync(job.output_path);
-  const receiptExists = !!job.receipt_path && existsSync(job.receipt_path);
+  const outputExists = (!!job.output_path && existsSync(job.output_path)) || !!job.artifact_delivery?.output?.url;
+  const receiptExists = (!!job.receipt_path && existsSync(job.receipt_path)) || !!job.artifact_delivery?.receipt?.url;
   const paymentCaptured = job.payment_status === "captured";
   const hasAuthenticatedWallet = !!job.user_id && Number.isInteger(job.price_cents) && job.price_cents > 0;
 
@@ -610,6 +675,17 @@ const statusMeta = (job) => {
       can_view_receipt: false,
     };
   }
+  if (job.status === "cancelled" || job.status === "expired") {
+    const cancelled = job.status === "cancelled";
+    return {
+      status_label: cancelled ? "Cancelled" : "Expired",
+      status_message: cancelled ? "Render cancelled before worker claim." : "Render expired while waiting for a worker.",
+      next_action: "Start a new render",
+      can_start_render: false,
+      can_download: false,
+      can_view_receipt: false,
+    };
+  }
   return {
     status_label: "Queued",
     status_message: paymentCaptured
@@ -638,10 +714,17 @@ const publicJob = (job, options = {}) => {
     renderer: job.renderer,
     render_request_id: job.render_request_id,
     started_at: job.started_at,
+    claimed_at: job.claimed_at,
+    claimed_by: job.claimed_by,
+    worker_id: job.worker_id,
+    node_id: job.node_id,
     completed_at: job.completed_at,
+    cancelled_at: job.cancelled_at,
+    expired_at: job.expired_at,
     engine: job.engine,
     render_seconds: job.render_seconds,
     failure_reason: job.failure_reason,
+    failure_code: job.failure_code,
     failed_at: job.failed_at,
     blender_exit_code: job.blender_exit_code,
     render_started_at: job.render_started_at,
@@ -679,10 +762,10 @@ const publicJob = (job, options = {}) => {
     receipt_created_at: job.receipt_created_at,
   };
   if (options.includePrivateUrls) {
-    payload.download_url = job.output_path && existsSync(job.output_path)
+    payload.download_url = ((job.output_path && existsSync(job.output_path)) || job.artifact_delivery?.output?.url)
       ? `/node/v1/web-render/jobs/${encodeURIComponent(job.job_id)}/download?token=${encodeURIComponent(job.download_token || "")}`
       : null;
-    payload.receipt_url = job.receipt_path && existsSync(job.receipt_path)
+    payload.receipt_url = ((job.receipt_path && existsSync(job.receipt_path)) || job.artifact_delivery?.receipt?.url)
       ? `/node/v1/web-render/jobs/${encodeURIComponent(job.job_id)}/receipt?token=${encodeURIComponent(job.receipt_token || "")}`
       : null;
   }
@@ -721,6 +804,83 @@ const coreQueueHasJob = async (jobId) => {
   });
 };
 
+const removeCoreQueueEntry = async (jobId) => {
+  if (!existsSync(CORE_QUEUE_FILE)) return false;
+  const raw = await readFile(CORE_QUEUE_FILE, "utf8");
+  const rows = raw.split(/\r?\n/).filter(Boolean);
+  const kept = rows.filter((line) => {
+    if (line === jobId) return false;
+    try { return String(JSON.parse(line)?.job_id || "") !== jobId; } catch { return true; }
+  });
+  if (kept.length === rows.length) return false;
+  const temporary = `${CORE_QUEUE_FILE}.${process.pid}.${randomUUID()}.tmp`;
+  await writeFile(temporary, kept.length ? `${kept.join("\n")}\n` : "", "utf8");
+  await rename(temporary, CORE_QUEUE_FILE);
+  return true;
+};
+
+const loadCoreJob = async (jobId) => {
+  const coreJobPath = path.join(CORE_JOB_DIR, `${jobId}.json`);
+  if (!existsSync(coreJobPath)) return { path: coreJobPath, job: null };
+  try { return { path: coreJobPath, job: JSON.parse(await readFile(coreJobPath, "utf8")) }; }
+  catch { return { path: coreJobPath, job: null }; }
+};
+
+const unclaimedCoreState = (coreJob) => {
+  if (!coreJob) return true;
+  const state = String(coreJob.state || coreJob.status || "").toUpperCase();
+  return ["QUEUED", "SUBMITTED"].includes(state) && !coreJob.claimed_at && !coreJob.claimed_by;
+};
+
+const transitionUnclaimedJob = async (jobId, target) => {
+  const job = await loadJob(jobId);
+  if (!job) return { ok: false, status: 404, error: "job_not_found" };
+  if (!["queued", "submitted", "created", "uploaded"].includes(job.status)) {
+    return { ok: false, status: 409, error: `job_${job.status || "not_cancellable"}` };
+  }
+  if (job.claimed_at || job.claimed_by || job.worker_id || job.node_id) {
+    return { ok: false, status: 409, error: "job_claimed" };
+  }
+  if (target === "expired" && Date.now() - Date.parse(job.created_at || job.submitted_at || "") < QUEUE_EXPIRY_MS) {
+    return { ok: false, status: 409, error: "job_not_expired" };
+  }
+
+  let core = await loadCoreJob(jobId);
+  if (!unclaimedCoreState(core.job)) return { ok: false, status: 409, error: "job_claimed" };
+  await removeCoreQueueEntry(jobId);
+  core = await loadCoreJob(jobId);
+  if (!unclaimedCoreState(core.job)) return { ok: false, status: 409, error: "job_claimed" };
+
+  const now = new Date().toISOString();
+  if (core.job) {
+    core.job.state = target.toUpperCase();
+    core.job.status = target.toUpperCase();
+    core.job[`${target}_at`] = now;
+    core.job.failure_reason = target === "cancelled" ? "cancelled_by_user" : "queue_timeout";
+    core.job.failure_code = core.job.failure_reason;
+    await writeFile(core.path, JSON.stringify(core.job, null, 2), "utf8");
+  }
+  job.status = target;
+  job[`${target}_at`] = now;
+  job.failure_reason = target === "cancelled" ? "cancelled_by_user" : "queue_timeout";
+  job.failure_code = job.failure_reason;
+  job.updated_at = now;
+  await refundFailedWalletDebit(job);
+  await saveJob(job);
+  return { ok: true, job };
+};
+
+const expireUnclaimedJobs = async () => {
+  const jobs = await listJobs();
+  const cutoff = Date.now() - QUEUE_EXPIRY_MS;
+  for (const job of jobs) {
+    if (!["queued", "submitted", "created", "uploaded"].includes(job.status)) continue;
+    const created = Date.parse(job.created_at || job.submitted_at || "");
+    if (!Number.isFinite(created) || created > cutoff) continue;
+    await transitionUnclaimedJob(job.job_id, "expired").catch((error) => console.error("queue expiry failed", job.job_id, error));
+  }
+};
+
 const enqueueCoreRenderJob = async (job) => {
   await mkdir(CORE_JOB_DIR, { recursive: true });
   await mkdir(path.dirname(CORE_QUEUE_FILE), { recursive: true });
@@ -736,6 +896,17 @@ const enqueueCoreRenderJob = async (job) => {
       return { ok: false, status: 409, error: "core_enqueue_in_progress" };
     }
     throw error;
+  }
+  if (["uploading", "verifying", "retrying"].includes(job.status)) {
+    const retrying = job.status === "retrying";
+    return {
+      status_label: retrying ? "Retrying delivery" : job.status === "verifying" ? "Verifying" : "Uploading",
+      status_message: retrying ? "Artifact delivery will retry automatically." : "Render finished. Preparing secure delivery.",
+      next_action: retrying ? "Waiting to retry delivery" : "Wait for delivery",
+      can_start_render: false,
+      can_download: false,
+      can_view_receipt: false,
+    };
   }
 
   try {
@@ -792,13 +963,112 @@ const enqueueCoreRenderJob = async (job) => {
   }
 };
 
+const bunnyPut = async (remotePath, bytes, contentType) => {
+  const response = await fetch(bunnyRemoteUrl(remotePath), {
+    method: "PUT",
+    headers: { AccessKey: BUNNY_STORAGE_KEY, "content-type": contentType },
+    body: bytes,
+  });
+  if (!response.ok) throw new Error(`bunny_put_${response.status}`);
+};
+
+const bunnyVerify = async (remotePath, expectedBytes) => {
+  const response = await fetch(bunnyRemoteUrl(remotePath), {
+    method: "GET",
+    headers: { AccessKey: BUNNY_STORAGE_KEY },
+  });
+  if (!response.ok) throw new Error(`bunny_get_${response.status}`);
+  const remoteBytes = Buffer.from(await response.arrayBuffer());
+  if (remoteBytes.length !== expectedBytes.length) {
+    throw new Error(`bunny_size_mismatch:${remoteBytes.length}:${expectedBytes.length}`);
+  }
+  if (sha256(remoteBytes) !== sha256(expectedBytes)) throw new Error("bunny_sha256_mismatch");
+  return remoteBytes.length;
+};
+
+const maybeCleanupLocalArtifacts = async (job, now = new Date().toISOString()) => {
+  const delivery = job?.artifact_delivery;
+  if (!delivery || delivery.state !== "verified" || delivery.cleaned_at) return false;
+  if (Date.parse(delivery.cleanup_after || "") > Date.parse(now)) return false;
+  const paths = [delivery.output?.local_path, delivery.receipt?.local_path].filter(Boolean);
+  for (const localPath of paths) await unlink(localPath).catch((error) => {
+    if (error?.code !== "ENOENT") throw error;
+  });
+  delivery.cleaned_at = now;
+  delivery.local_cleanup = "complete";
+  job.output_path = null;
+  job.receipt_path = null;
+  job.updated_at = now;
+  await saveJob(job);
+  return true;
+};
+
+const deliverCoreArtifacts = async (job, coreJob, coreOutputPath, coreReceiptPath, coreReceipt, now) => {
+  const outputBytes = await readFile(coreOutputPath);
+  const receiptBytes = await readFile(coreReceiptPath);
+  if (!outputBytes.length) throw new Error("output_empty");
+  if (!receiptBytes.length || !coreReceipt || coreReceipt.job_id && coreReceipt.job_id !== job.job_id) {
+    throw new Error("receipt_invalid");
+  }
+  const outputHash = sha256(outputBytes);
+  const declaredHash = coreJob.output_sha256 || coreReceipt.output_sha256 || null;
+  if (declaredHash && declaredHash !== outputHash) throw new Error("output_sha256_mismatch");
+  if (!bunnyConfigured()) throw new Error("bunny_not_configured");
+
+  const receiptId = coreReceipt.receipt_id || `RID-${job.job_id}`;
+  const outputRemotePath = `outputs/${job.job_id.slice(-2).toLowerCase()}/${job.job_id}.zip`;
+  const receiptRemotePath = `receipts/${receiptId}.json`;
+  const attempts = Number(job.artifact_delivery?.attempts || 0) + 1;
+  job.status = "uploading";
+  job.artifact_delivery = {
+    ...job.artifact_delivery,
+    provider: "bunny",
+    state: "uploading",
+    attempts,
+    queued_at: job.artifact_delivery?.queued_at || now,
+    last_attempt_at: now,
+    next_retry_at: null,
+    last_error: null,
+    output: { local_path: coreOutputPath, remote_path: outputRemotePath, size_bytes: outputBytes.length, sha256: outputHash },
+    receipt: { local_path: coreReceiptPath, remote_path: receiptRemotePath, size_bytes: receiptBytes.length, sha256: sha256(receiptBytes) },
+  };
+  job.updated_at = now;
+  await saveJob(job);
+
+  await bunnyPut(outputRemotePath, outputBytes, "application/zip");
+  await bunnyPut(receiptRemotePath, receiptBytes, "application/json");
+  job.status = "verifying";
+  job.artifact_delivery.state = "verifying";
+  await saveJob(job);
+  await bunnyVerify(outputRemotePath, outputBytes);
+  await bunnyVerify(receiptRemotePath, receiptBytes);
+
+  const verifiedAt = new Date().toISOString();
+  job.artifact_delivery.state = "verified";
+  job.artifact_delivery.uploaded_at = verifiedAt;
+  job.artifact_delivery.verified_at = verifiedAt;
+  job.artifact_delivery.cleanup_after = new Date(Date.parse(verifiedAt) + ARTIFACT_LOCAL_CLEANUP_DELAY_MS).toISOString();
+  job.artifact_delivery.output.url = bunnyPublicUrl(outputRemotePath);
+  job.artifact_delivery.output.verified_at = verifiedAt;
+  job.artifact_delivery.receipt.url = bunnyPublicUrl(receiptRemotePath);
+  job.artifact_delivery.receipt.verified_at = verifiedAt;
+  return { outputBytes, outputHash, receiptId, verifiedAt };
+};
+
 const syncCoreRenderState = async (job) => {
-  if (!job || !["submitted", "running"].includes(job.status)) return job;
+  if (!job) return job;
+  if (job.status === "complete") {
+    await ensureRenderedFileCount(job);
+    await maybeCleanupLocalArtifacts(job);
+    return job;
+  }
   const coreJobPath = path.join(CORE_JOB_DIR, `${job.job_id}.json`);
   if (!existsSync(coreJobPath)) return job;
   let coreJob;
   try { coreJob = JSON.parse(await readFile(coreJobPath, "utf8")); } catch { return job; }
   const state = String(coreJob.state || coreJob.status || "").toUpperCase();
+  const queuedCompletion = job.status === "queued" && ["DONE", "COMPLETE"].includes(state) && coreJob.verify_ok === true;
+  if (!queuedCompletion && !["submitted", "running", "uploading", "verifying", "retrying"].includes(job.status)) return job;
   const now = new Date().toISOString();
   let changed = false;
   if (state === "RUNNING" && job.status !== "running") {
@@ -808,14 +1078,103 @@ const syncCoreRenderState = async (job) => {
     job.node_id = coreJob.claimed_by || coreJob.node_id || null;
     changed = true;
   } else if (state === "DONE" || state === "COMPLETE") {
+    const deliveryLockPath = `${jobPath(job.job_id)}.artifact-delivery.lock`;
+    if (!(await acquireDeliveryLock(deliveryLockPath))) return job;
+    try {
+    const outputName = `${job.job_id}.zip`;
+    const outputShard = job.job_id.slice(-2).toLowerCase();
+    const outputCandidates = [
+      path.join(CORE_OUTPUT_DIR, outputShard, outputName),
+      path.join(CORE_OUTPUT_DIR, outputName),
+    ];
+    const coreOutputPath = outputCandidates.find((candidate) => existsSync(candidate));
+    if (!coreOutputPath) return job;
+    const receiptId = `RID-${job.job_id}`;
+    const coreReceiptPath = path.join(CORE_RECEIPT_DIR, `${receiptId}.json`);
+    let coreReceipt = null;
+    if (existsSync(coreReceiptPath)) {
+      try { coreReceipt = JSON.parse(await readFile(coreReceiptPath, "utf8")); } catch {}
+    }
+    if (!coreReceipt) return job;
+    const nextRetryAt = Date.parse(job.artifact_delivery?.next_retry_at || "");
+    if (Number.isFinite(nextRetryAt) && nextRetryAt > Date.now()) return job;
+    const previousAttempts = Number(job.artifact_delivery?.attempts || 0);
+    let delivered;
+    try {
+      delivered = await deliverCoreArtifacts(job, coreJob, coreOutputPath, coreReceiptPath, coreReceipt, now);
+    } catch (error) {
+      const attempts = Math.max(previousAttempts + 1, Number(job.artifact_delivery?.attempts || 0));
+
+      job.status = "complete";
+
+      job.artifact_delivery = {
+        ...job.artifact_delivery,
+        provider: "bunny",
+        state: "pending",
+        attempts,
+        queued_at: job.artifact_delivery?.queued_at || now,
+        last_attempt_at: now,
+        last_error: String(error?.message || error),
+        next_retry_at: new Date(Date.parse(now) + retryDelayMs(attempts)).toISOString(),
+      };
+
+      job.updated_at = now;
+      delivered = {
+        outputHash:
+          coreReceipt?.output_sha256 ||
+          coreReceipt?.output_hash ||
+          coreReceipt?.artifact_sha256 ||
+          null,
+      };
+    }
+    const outputStat = await stat(coreOutputPath);
+    const renderedCount = await resolveRenderedFileCount(job, coreJob, coreOutputPath);
+    const startedAt = coreJob.claimed_at || coreJob.started_at || job.started_at;
+    const completedAt = coreJob.completed_at || coreJob.finished_at || coreReceipt?.timestamp_utc || now;
     job.status = "complete";
-    job.completed_at = coreJob.completed_at || coreJob.finished_at || now;
+    job.started_at = startedAt || job.started_at;
+    job.completed_at = completedAt;
     job.worker_id = coreJob.claimed_by || coreJob.worker_id || job.worker_id || null;
     job.node_id = coreJob.claimed_by || coreJob.node_id || job.node_id || null;
     job.core_output_url = coreJob.output_url || null;
     job.core_receipt_url = coreJob.receipt_url || null;
-    job.output_sha256 = coreJob.output_sha256 || job.output_sha256 || null;
+    job.output_path = coreOutputPath;
+    job.output_filename = outputName;
+    job.output_size_bytes = outputStat.size;
+    job.output_sha256 =
+      delivered?.outputHash ||
+      coreReceipt?.output_sha256 ||
+      coreReceipt?.output_hash ||
+      job.output_sha256 ||
+      null;
+    job.output_url =
+      job.artifact_delivery?.output?.url ||
+      job.output_url ||
+      null;
+    job.output_attached_at = completedAt;
+    if (Number.isInteger(renderedCount) && renderedCount > 0) {
+      job.rendered_file_count = renderedCount;
+      job.rendered_frame_count = renderedCount;
+      job.progress_percent = 100;
+    }
+    if (coreReceipt) {
+      job.receipt_id = coreReceipt.receipt_id || receiptId;
+      job.receipt_path = coreReceiptPath;
+      job.receipt_url =
+        job.artifact_delivery?.receipt?.url ||
+        job.receipt_url ||
+        null;
+      job.receipt_created_at = coreReceipt.timestamp_utc || completedAt;
+    }
+    const startedMs = Date.parse(startedAt || "");
+    const completedMs = Date.parse(completedAt || "");
+    if (Number.isFinite(startedMs) && Number.isFinite(completedMs) && completedMs >= startedMs) {
+      job.render_seconds = Math.round((completedMs - startedMs) / 1000);
+    }
     changed = true;
+    } finally {
+      await unlink(deliveryLockPath).catch(() => {});
+    }
   } else if (state === "FAILED") {
     job.status = "failed";
     job.failed_at = coreJob.failed_at || now;
@@ -1736,6 +2095,50 @@ const zipEntryNames = (bytes) => {
   return names;
 };
 
+const preferredRenderedFileCount = (job, coreJob = {}) => {
+  const candidates = [
+    job?.rendered_file_count,
+    job?.rendered_frame_count,
+    coreJob?.rendered_file_count,
+    coreJob?.rendered_frames,
+    coreJob?.frames_done,
+  ];
+  for (const candidate of candidates) {
+    const count = Number(candidate);
+    if (Number.isInteger(count) && count > 0) return count;
+  }
+  return null;
+};
+
+const resolveRenderedFileCount = async (job, coreJob = null, outputPath = job?.output_path) => {
+  let resolvedCoreJob = coreJob;
+  let count = preferredRenderedFileCount(job, resolvedCoreJob || {});
+  if (!count && !resolvedCoreJob && job?.job_id) {
+    const coreJobPath = path.join(CORE_JOB_DIR, `${job.job_id}.json`);
+    if (existsSync(coreJobPath)) {
+      try { resolvedCoreJob = JSON.parse(await readFile(coreJobPath, "utf8")); } catch {}
+      count = preferredRenderedFileCount(job, resolvedCoreJob || {});
+    }
+  }
+  if (count || !outputPath || !existsSync(outputPath)) return count;
+  const names = zipEntryNames(await readFile(outputPath));
+  const renderedFiles = names.filter((name) =>
+    name && !name.endsWith("/") && /^(?:frames|output)\//i.test(name));
+  return renderedFiles.length || null;
+};
+
+const ensureRenderedFileCount = async (job) => {
+  const count = await resolveRenderedFileCount(job);
+  if (!count) return null;
+  if (job.rendered_file_count !== count || job.rendered_frame_count !== count) {
+    job.rendered_file_count = count;
+    job.rendered_frame_count = count;
+    job.updated_at = new Date().toISOString();
+    await saveJob(job);
+  }
+  return count;
+};
+
 const expectedFrameNames = (job) => {
   const start = Number.isInteger(job.frame_start) ? job.frame_start : 1;
   const count = Number.isInteger(job.frame_count) && job.frame_count > 0 ? job.frame_count : 1;
@@ -1830,6 +2233,110 @@ const countRecentZips = async () => {
   } catch {
     return null;
   }
+};
+
+const readJsonFile = async (file, fallback) => {
+  if (!existsSync(file)) return fallback;
+  try {
+    return JSON.parse(await readFile(file, "utf8"));
+  } catch {
+    return fallback;
+  }
+};
+
+const unixIso = (value) => {
+  const seconds = Number(value);
+  return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toISOString() : null;
+};
+
+const bunnyStorageSummary = async () => {
+  const [plan, uploadMap, batch] = await Promise.all([
+    readJsonFile(BUNNY_PLAN_PATH, null),
+    readJsonFile(BUNNY_MAP_PATH, {}),
+    readJsonFile(BUNNY_BATCH_PATH, null),
+  ]);
+  const mapEntries = uploadMap && typeof uploadMap === "object" && !Array.isArray(uploadMap)
+    ? Object.entries(uploadMap)
+    : [];
+  const mapped = new Set(mapEntries.map(([remote]) => String(remote).replace(/^\/+/, "")));
+  const planItems = Array.isArray(plan?.sample) ? plan.sample : [];
+  const events = Array.isArray(batch?.events) ? batch.events : [];
+  const failureByRemote = new Map(events
+    .filter((event) => event?.ok === false && event?.remote)
+    .map((event) => [String(event.remote).replace(/^\/+/, ""), event]));
+  const planCreatedAt = unixIso(plan?.ts);
+  const pendingUploads = planItems
+    .filter((item) => item?.remote && !mapped.has(String(item.remote).replace(/^\/+/, "")))
+    .slice(0, 25)
+    .map((item) => {
+      const remote = String(item.remote).replace(/^\/+/, "");
+      const failure = failureByRemote.get(remote);
+      return {
+        job_id: item.job_id || null,
+        status: failure ? "failed" : "pending",
+        local_path: item.local || null,
+        destination: remote || null,
+        size_bytes: Number.isFinite(Number(item.bytes)) ? Number(item.bytes) : null,
+        attempts: null,
+        queued_at: planCreatedAt,
+        last_error: failure?.err || null,
+      };
+    });
+  const recentUploads = mapEntries
+    .map(([remote, value]) => ({ remote, value: value && typeof value === "object" ? value : {} }))
+    .sort((a, b) => Number(b.value.uploaded_ts || 0) - Number(a.value.uploaded_ts || 0))
+    .slice(0, 25)
+    .map(({ remote, value }) => ({
+      job_id: value.job_id || null,
+      status: "completed",
+      storage_provider: "bunny",
+      local_path: value.local || null,
+      remote_path: remote || null,
+      size_bytes: Number.isFinite(Number(value.bytes)) ? Number(value.bytes) : null,
+      sha256: value.sha256 || null,
+      duration_ms: Number.isFinite(Number(value.duration_ms)) ? Number(value.duration_ms) : null,
+      verified: typeof value.verified === "boolean" ? value.verified : null,
+      created_at: unixIso(value.uploaded_ts),
+    }));
+  const batchTime = unixIso(batch?.ts);
+  const recentFailures = events
+    .filter((event) => event?.ok === false)
+    .slice(-25)
+    .reverse()
+    .map((event) => ({
+      job_id: event.job_id || null,
+      reason: event.err || (event.http_code ? `http_${event.http_code}` : null),
+      attempts: Number.isFinite(Number(event.attempts)) ? Number(event.attempts) : null,
+      last_retry_at: event.last_retry_at || batchTime,
+      next_retry_at: event.next_retry_at || null,
+    }));
+  const mappedBytes = mapEntries.reduce((sum, [, value]) => {
+    const size = Number(value?.bytes);
+    return Number.isFinite(size) ? sum + size : sum;
+  }, 0);
+  const successfulTimes = mapEntries.map(([, value]) => Number(value?.uploaded_ts)).filter(Number.isFinite);
+  const oldestPendingAt = pendingUploads.map((item) => isoTime(item.queued_at)).filter((value) => value !== null).sort((a, b) => a - b)[0];
+  const planCount = Number(plan?.count);
+  const pendingCount = Number.isFinite(planCount) ? Math.max(0, planCount - mapEntries.length) : pendingUploads.length;
+  const batchFailed = Number(batch?.failed);
+  const failedCount = Number.isFinite(batchFailed) ? Math.max(0, batchFailed) : events.filter((event) => event?.ok === false).length;
+  const oldestPendingAtIso = pendingCount > 0 && Number.isFinite(oldestPendingAt) ? new Date(oldestPendingAt).toISOString() : null;
+  return {
+    bunny_storage_bytes: mapEntries.length ? mappedBytes : null,
+    bunny_object_count: mapEntries.length,
+    pending_upload_count: pendingCount,
+    pending_uploads: pendingUploads,
+    failed_upload_count: failedCount,
+    failed_uploads: failedCount,
+    retry_queue_count: null,
+    retry_queue: null,
+    oldest_pending_upload_at: oldestPendingAtIso,
+    oldest_pending_upload_age_seconds: oldestPendingAtIso ? Math.max(0, Math.floor((Date.now() - oldestPendingAt) / 1000)) : null,
+    last_successful_upload_at: successfulTimes.length ? unixIso(Math.max(...successfulTimes)) : null,
+    last_failed_upload_at: failedCount ? batchTime : null,
+    recent_uploads: recentUploads,
+    recent_failures: recentFailures,
+  };
 };
 
 const diskStats = async () => {
@@ -2006,6 +2513,79 @@ const workerSummaryFromStatus = (workerStatus, jobs) => {
   };
 };
 
+const readAllNodeRecords = async () => {
+  const files = [];
+  if (NODE_PAIR_STORE_FILE && existsSync(NODE_PAIR_STORE_FILE)) files.push(NODE_PAIR_STORE_FILE);
+  files.push(...await listNodeRecordFiles(NODE_PAIR_STORE_DIR));
+  const records = [];
+  for (const file of [...new Set(files)]) {
+    try { records.push(...await readNodeRecordFile(file)); } catch {}
+  }
+  return records;
+};
+
+const capacitySummary = (workerStatus, jobs, pairedRecords) => {
+  const now = Date.now();
+  const workers = Array.isArray(workerStatus?.workers) ? workerStatus.workers : [];
+  const primaryId = workerStatus?.worker_id || workerStatus?.node_id || null;
+  const runtimeRecords = primaryId ? [{ ...workerStatus, worker_id: primaryId }, ...workers] : workers;
+  const pairedById = new Map(pairedRecords.map((record) => [String(record.node_id || record.nodeId || record.id || ""), record]).filter(([id]) => id));
+  const runtimeById = new Map(runtimeRecords.map((record) => [String(record.node_id || record.nodeId || record.worker_id || record.id || ""), record]).filter(([id]) => id));
+  const ids = new Set([...pairedById.keys(), ...runtimeById.keys()]);
+  const runningJobs = jobs.filter((job) => job.status === "running");
+  const queuedJobs = jobs.filter((job) => ["queued", "submitted", "leased"].includes(job.status));
+  const activeByNode = new Map(runningJobs.map((job) => [String(job.node_id || job.worker_id || ""), job]).filter(([id]) => id));
+  const todayByNode = new Map();
+  for (const job of jobs.filter((item) => isTodayUtc(item.completed_at || item.updated_at))) {
+    const id = String(job.node_id || job.worker_id || "");
+    if (id) todayByNode.set(id, Number(todayByNode.get(id) || 0) + 1);
+  }
+  const nodes = [...ids].map((id) => {
+    const paired = pairedById.get(id) || {};
+    const runtime = runtimeById.get(id) || {};
+    const lastSeen = runtime.last_seen || runtime.lastSeen || runtime.heartbeat_at || runtime.updated_at || paired.last_seen || paired.lastSeen || null;
+    const lastSeenMs = Date.parse(String(lastSeen || ""));
+    const online = Number.isFinite(lastSeenMs) && now - lastSeenMs <= OPS_NODE_OFFLINE_MS;
+    const current = activeByNode.get(id);
+    const gpu = runtime.gpu_model || runtime.gpu || runtime.device_name || paired.gpu_model || paired.gpu || null;
+    const status = online ? (current ? "busy" : "idle") : "offline";
+    return {
+      node_id: id,
+      gpu,
+      vram_bytes: Number.isFinite(Number(runtime.vram_bytes ?? runtime.gpu_memory_bytes ?? paired.vram_bytes)) ? Number(runtime.vram_bytes ?? runtime.gpu_memory_bytes ?? paired.vram_bytes) : null,
+      status,
+      current_job: current?.job_id || runtime.current_job || runtime.current_job_id || null,
+      jobs_today: todayByNode.get(id) ?? null,
+      last_seen: lastSeen,
+      temperature_c: Number.isFinite(Number(runtime.temperature_c ?? runtime.gpu_temperature_c)) ? Number(runtime.temperature_c ?? runtime.gpu_temperature_c) : null,
+      power_watts: Number.isFinite(Number(runtime.power_watts ?? runtime.gpu_power_watts)) ? Number(runtime.power_watts ?? runtime.gpu_power_watts) : null,
+      offline_reason: online ? null : runtime.offline_reason || paired.offline_reason || paired.reason || null,
+      outstanding_jobs: jobs.filter((job) => !["complete", "failed", "cancelled"].includes(job.status) && String(job.node_id || job.worker_id || "") === id).length,
+    };
+  });
+  const onlineNodes = nodes.filter((node) => node.status !== "offline");
+  const reportedGpuCount = Number(workerStatus?.gpu_count);
+  return {
+    gpus_online: Number.isFinite(reportedGpuCount) ? reportedGpuCount : onlineNodes.filter((node) => node.gpu).length || null,
+    gpus_busy: onlineNodes.filter((node) => node.status === "busy").length,
+    gpus_idle: onlineNodes.length ? onlineNodes.filter((node) => node.status === "idle").length : null,
+    queue_depth: queuedJobs.length,
+    backlog_hours: null,
+    offline_nodes: nodes.filter((node) => node.status === "offline").length,
+    online_nodes: nodes.filter((node) => node.status !== "offline"),
+    offline_node_records: nodes.filter((node) => node.status === "offline"),
+    queued_jobs: queuedJobs.map((job) => ({
+      job_id: job.job_id,
+      gpu_required: job.gpu_required || job.required_gpu || job.required_capability || null,
+      frames: Number.isFinite(Number(job.frame_count)) ? Number(job.frame_count) : null,
+      queued_since: job.submitted_at || job.created_at || null,
+      priority: job.priority ?? null,
+      assigned_node: job.node_id || job.worker_id || null,
+      wait_seconds: Number.isFinite(Date.parse(String(job.submitted_at || job.created_at || ""))) ? Math.max(0, Math.floor((now - Date.parse(job.submitted_at || job.created_at)) / 1000)) : null,
+    })),
+  };
+};
+
 const buildOpsSummary = async () => {
   const jobs = await listJobs();
   const progressJobs = await Promise.all(jobs.map((job) => withProgress(job).catch(() => job)));
@@ -2014,6 +2594,9 @@ const buildOpsSummary = async () => {
   const workerStatus = await readWorkerStatusFile();
   const ackedAlerts = await loadAckedAlertIds();
   const fsStats = await diskStats();
+  const bunnyStorage = await bunnyStorageSummary();
+  const artifactWorker = await readJsonFile(ARTIFACT_WORKER_STATUS_PATH, {});
+  const capacity = capacitySummary(workerStatus, progressJobs, await readAllNodeRecords());
   const completedToday = progressJobs.filter((job) => job.status === "complete" && isTodayUtc(job.completed_at || job.updated_at));
   const failedToday = progressJobs.filter((job) => job.status === "failed" && isTodayUtc(job.failed_at || job.updated_at));
   const receiptsToday = receipts.filter((receipt) => isTodayUtc(receipt.receipt_created_at || receipt.created_at));
@@ -2153,6 +2736,12 @@ const buildOpsSummary = async () => {
   return {
     ok: true,
     generated_at: new Date().toISOString(),
+    artifact_worker_last_run: artifactWorker.artifact_worker_last_run || null,
+    artifact_worker_duration_ms: Number.isFinite(Number(artifactWorker.artifact_worker_duration_ms)) ? Number(artifactWorker.artifact_worker_duration_ms) : null,
+    artifact_worker_jobs_scanned: Number.isFinite(Number(artifactWorker.artifact_worker_jobs_scanned)) ? Number(artifactWorker.artifact_worker_jobs_scanned) : null,
+    artifact_worker_uploads_completed: Number.isFinite(Number(artifactWorker.artifact_worker_uploads_completed)) ? Number(artifactWorker.artifact_worker_uploads_completed) : null,
+    artifact_worker_uploads_failed: Number.isFinite(Number(artifactWorker.artifact_worker_uploads_failed)) ? Number(artifactWorker.artifact_worker_uploads_failed) : null,
+    artifact_worker_cleanups_completed: Number.isFinite(Number(artifactWorker.artifact_worker_cleanups_completed)) ? Number(artifactWorker.artifact_worker_cleanups_completed) : null,
     health_status,
     system: {
       api_status: "ok",
@@ -2171,6 +2760,7 @@ const buildOpsSummary = async () => {
       average_queue_wait_seconds: averageSeconds(progressJobs.filter((job) => job.started_at), "submitted_at", "started_at"),
     },
     nodes: workerSummaryFromStatus(workerStatus, progressJobs),
+    capacity,
     financial: {
       wallet_debits_today_cents: centsSum(txnsToday.filter((txn) => txn.type === "debit")),
       wallet_credits_today_cents: centsSum(txnsToday.filter((txn) => ["credit", "refund", "adjustment"].includes(txn.type))),
@@ -2185,6 +2775,7 @@ const buildOpsSummary = async () => {
       free_inodes: fsStats?.free_inodes ?? null,
       inode_used_percent: fsStats?.inode_used_percent ?? null,
       recent_zip_count: await countRecentZips(),
+      ...bunnyStorage,
     },
     recent: {
       jobs: progressJobs
@@ -2703,6 +3294,7 @@ const server = createServer(async (req, res) => {
         return send(res, 400, { ok: false, error: "unsupported_file_type" });
       }
       const job = await createJob({ ...body, ...(wantsNodeMuncherSmoke(body, req, url) ? { nodemuncher_smoke: true } : {}), ...authFromRequest(req) });
+      if (!job.ok) return send(res, job.status || 500, { ok: false, error: job.error || "core_enqueue_failed" });
       return send(res, 200, {
         ok: true,
         job_id: job.job_id,
@@ -2733,6 +3325,7 @@ const server = createServer(async (req, res) => {
         ...(wantsNodeMuncherSmoke(uploadInput, req, url) ? { nodemuncher_smoke: true } : {}),
         ...authFromRequest(req),
       });
+      if (!job.ok) return send(res, job.status || 500, { ok: false, error: job.error || "core_enqueue_failed" });
 
       return send(res, 200, {
         ok: true,
@@ -2751,6 +3344,23 @@ const server = createServer(async (req, res) => {
     const submitMatch = pathname.match(/^\/node\/v1\/jobs\/([^/]+)\/submit-render$/);
     if (req.method === "POST" && submitMatch) {
       const result = await submitRender(decodeURIComponent(submitMatch[1]), authFromRequest(req));
+      if (!result.ok) return send(res, result.status, { ok: false, error: result.error });
+      return send(res, 200, publicJob(result.job));
+    }
+
+    const cancelMatch = pathname.match(/^\/node\/v1\/jobs\/([^/]+)\/cancel$/);
+    if (req.method === "POST" && cancelMatch) {
+      const jobId = decodeURIComponent(cancelMatch[1]);
+      const job = await loadJob(jobId);
+      if (!job) return send(res, 404, { ok: false, error: "job_not_found" });
+      const raw = await readRawBody(req);
+      let body = {};
+      try { body = raw.length ? JSON.parse(raw.toString("utf8")) : {}; }
+      catch { return send(res, 400, { ok: false, error: "invalid_json" }); }
+      if (!isAuthenticatedOwner(req, job) && !safeTokenEqual(body.token, job.download_token)) {
+        return send(res, 404, { ok: false, error: "job_not_found" });
+      }
+      const result = await transitionUnclaimedJob(jobId, "cancelled");
       if (!result.ok) return send(res, result.status, { ok: false, error: result.error });
       return send(res, 200, publicJob(result.job));
     }
@@ -2855,10 +3465,12 @@ const server = createServer(async (req, res) => {
       if (!job || !safeTokenEqual(url.searchParams.get("token"), job.download_token)) {
         return send(res, 404, { ok: false, error: "not_found" });
       }
-      if (!job.output_path || !existsSync(job.output_path)) {
-        return send(res, 404, { ok: false, error: "not_found" });
+      if (job.output_path && existsSync(job.output_path)) return sendFile(res, job);
+      if (job.artifact_delivery?.state === "verified" && job.artifact_delivery?.output?.url) {
+        res.writeHead(302, { location: job.artifact_delivery.output.url, "cache-control": "no-store" });
+        return res.end();
       }
-      return sendFile(res, job);
+      return send(res, 404, { ok: false, error: "not_found" });
     }
 
     const receiptMatch = pathname.match(/^\/node\/v1\/jobs\/([^/]+)\/receipt$/);
@@ -2867,11 +3479,15 @@ const server = createServer(async (req, res) => {
       if (!job || !safeTokenEqual(url.searchParams.get("token"), job.receipt_token)) {
         return send(res, 404, { ok: false, error: "not_found" });
       }
-      if (!job.receipt_path || !existsSync(job.receipt_path)) {
-        return send(res, 404, { ok: false, error: "not_found" });
+      if (job.receipt_path && existsSync(job.receipt_path)) {
+        const receipt = JSON.parse(await readFile(job.receipt_path, "utf8"));
+        return send(res, 200, receipt);
       }
-      const receipt = JSON.parse(await readFile(job.receipt_path, "utf8"));
-      return send(res, 200, receipt);
+      if (job.artifact_delivery?.state === "verified" && job.artifact_delivery?.receipt?.url) {
+        const remote = await fetch(job.artifact_delivery.receipt.url);
+        if (remote.ok) return send(res, 200, await remote.json());
+      }
+      return send(res, 404, { ok: false, error: "not_found" });
     }
 
     const match = pathname.match(/^\/node\/v1\/jobs\/([^/]+)$/);
@@ -2902,7 +3518,8 @@ server.listen(PORT, HOST, () => {
   console.log(`Upload store: ${UPLOAD_DIR}`);
   console.log(`Output store: ${OUTPUT_DIR}`);
   console.log(`Receipt store: ${RECEIPT_DIR}`);
+  void expireUnclaimedJobs();
 });
 
-
-
+const queueExpiryTimer = setInterval(() => void expireUnclaimedJobs(), QUEUE_EXPIRY_SWEEP_MS);
+queueExpiryTimer.unref();

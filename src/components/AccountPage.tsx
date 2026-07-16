@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import SiteNav from "@/components/SiteNav";
 import Workspace from "@/components/Workspace";
 import TopUpPage from "@/components/TopUpPage";
+import { trackAnalyticsEventOnce } from "@/lib/analytics";
 
 type Transaction = {
   event_id: string;
@@ -278,6 +279,9 @@ export default function AccountPage() {
     // Allow /account?job_id=...&download_token=...&receipt_token=... links to
     // open the package tracker directly, and /account#topup to open the wallet.
     const params = new URLSearchParams(window.location.search);
+    if (params.get("topup") === "success") {
+      trackAnalyticsEventOnce("topup_completed", "stripe-success", { status: "complete" });
+    }
     const jobId = params.get("job_id")?.trim();
     if (jobId) {
       setTracker({

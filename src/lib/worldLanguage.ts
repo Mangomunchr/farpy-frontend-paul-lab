@@ -52,11 +52,15 @@ export const worldTimelineSteps: Array<{
 ];
 
 export const worldStatusLabels = {
+  created: "Package received",
+  uploaded: "Package received",
   queued: "Package received",
   submitted: "Dispatcher",
   running: "Rendering",
   complete: "Package delivered",
   failed: "Package stopped",
+  cancelled: "Cancelled",
+  expired: "Expired",
 } as const;
 
 export function formatRendererName(value?: string | null) {
@@ -70,6 +74,8 @@ export function formatRendererName(value?: string | null) {
 export function packageTitleForStatus(status?: string | null) {
   if (status === "complete") return "Package delivered.";
   if (status === "failed") return "Package stopped.";
+  if (status === "cancelled") return "Cancelled";
+  if (status === "expired") return "Expired";
   if (status === "running") return "Rendering";
   if (status === "submitted") return "Dispatcher";
   if (status === "queued") return "Package received";

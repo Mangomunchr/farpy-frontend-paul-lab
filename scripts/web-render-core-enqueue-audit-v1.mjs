@@ -10,6 +10,8 @@ const webJobs = path.join(dataDir, "jobs");
 const uploads = path.join(dataDir, "uploads");
 const coreJobs = path.join(root, "core-jobs");
 const coreUploads = path.join(root, "core-uploads");
+const coreOutputs = path.join(root, "core-outputs");
+const coreReceipts = path.join(root, "core-receipts");
 const queueFile = path.join(coreJobs, "queue.jsonl");
 const jobId = "JOB-CORE-ENQUEUE-AUDIT";
 const uploadId = "UP-CORE-ENQUEUE-AUDIT";
@@ -53,6 +55,8 @@ const child = spawn(process.execPath, [path.resolve("scripts/job-api.mjs")], {
     FARPY_CORE_JOB_STORE_DIR: coreJobs,
     FARPY_CORE_QUEUE_FILE: queueFile,
     FARPY_CORE_UPLOAD_STORE_DIR: coreUploads,
+    FARPY_CORE_OUTPUT_STORE_DIR: coreOutputs,
+    FARPY_CORE_RECEIPT_STORE_DIR: coreReceipts,
     FARPY_CORE_UPLOAD_BASE_URL: "https://audit.invalid/real-upload",
   },
   stdio: ["ignore", "pipe", "pipe"],
@@ -101,11 +105,45 @@ try {
   const trackedJob = await tracked.json();
   if (!tracked.ok || trackedJob.status !== "running") throw new Error(`tracker did not reconcile core claim: ${JSON.stringify(trackedJob)}`);
 
+  coreJob.state = "DONE";
+  coreJob.status = "DONE";
+  coreJob.frames_done = 3;
+  coreJob.rendered_frames = 3;
+  coreJob.output_url = `https://audit.invalid/outputs/IT/${jobId}.zip`;
+  coreJob.receipt_url = `/receipt-static/${jobId}/index.json`;
+  await writeFile(path.join(coreJobs, `${jobId}.json`), JSON.stringify(coreJob, null, 2), "utf8");
+  const premature = await fetch(`http://127.0.0.1:${port}/node/v1/jobs/${jobId}`);
+  const prematureJob = await premature.json();
+  if (!premature.ok || prematureJob.status === "complete") throw new Error(`tracker completed without artifact: ${JSON.stringify(prematureJob)}`);
+
+  const outputDir = path.join(coreOutputs, jobId.slice(-2).toLowerCase());
+  await mkdir(outputDir, { recursive: true });
+  const outputBytes = Buffer.from("valid focused output fixture\n");
+  await writeFile(path.join(outputDir, `${jobId}.zip`), outputBytes);
+  await mkdir(coreReceipts, { recursive: true });
+  await writeFile(path.join(coreReceipts, `RID-${jobId}.json`), JSON.stringify({
+    receipt_id: `RID-${jobId}`,
+    job_id: jobId,
+    output_sha256: "audit-sha",
+    output_url: coreJob.output_url,
+    timestamp_utc: "2026-07-13T00:02:30.000Z",
+  }), "utf8");
+  const completed = await fetch(`http://127.0.0.1:${port}/node/v1/jobs/${jobId}`);
+  const completedJob = await completed.json();
+  if (!completed.ok || completedJob.status !== "complete") throw new Error(`tracker did not reconcile valid completion: ${JSON.stringify(completedJob)}`);
+  const completedStoredJob = JSON.parse(await readFile(path.join(webJobs, `${jobId}.json`), "utf8"));
+  if (completedStoredJob.rendered_file_count !== 3 || completedStoredJob.rendered_frame_count !== 3) throw new Error(`rendered counts not reconciled: ${JSON.stringify(completedStoredJob)}`);
+  if (!completedStoredJob.output_path || !completedStoredJob.receipt_path) throw new Error("artifact readiness not reconciled");
+  if (completedStoredJob.output_sha256 !== "audit-sha" || completedStoredJob.receipt_id !== `RID-${jobId}`) throw new Error("artifact metadata not reconciled");
+  if (completedStoredJob.worker_id !== "audit-worker" || completedStoredJob.render_seconds !== 90) throw new Error("worker/duration not reconciled");
+
   console.log("PASS web render creates one core job with the same ID");
   console.log("PASS repeated submit creates one queue entry");
   console.log("PASS upload path, renderer, frames, and captured payment metadata are preserved");
   console.log("PASS repeated submit does not alter wallet debit metadata");
   console.log("PASS tracker reconciles a core worker claim from submitted to running");
+  console.log("PASS core DONE without an artifact does not mark the tracker complete");
+  console.log("PASS valid core artifact and receipt reconcile download, counts, node, and duration");
 } finally {
   child.kill("SIGTERM");
   await new Promise((resolve) => child.once("exit", resolve));

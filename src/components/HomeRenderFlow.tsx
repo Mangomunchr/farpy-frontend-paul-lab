@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { WEB_RENDER_API_BASE } from "@/lib/webRenderApi";
 import { detectBlendFrames } from "@/lib/blendFrames";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 type Queue = "normal" | "fast";
 type Renderer = "blender" | "octane";
@@ -130,6 +131,14 @@ export default function HomeRenderFlow() {
     form.append("frame_start", String(submitFrameStart));
     form.append("frame_end", String(submitFrameEnd));
 
+    const analyticsMetadata = {
+      frame_count: submitFrameCount,
+      renderer: inferredRenderer,
+      price_cents: Math.round(total * 100),
+      file_type: RENDERERS[inferredRenderer].ext.slice(1),
+    };
+    trackAnalyticsEvent("package_upload_started", analyticsMetadata);
+
     try {
       const response = await fetch(UPLOAD_ENDPOINT, {
         method: "POST",
@@ -146,6 +155,7 @@ export default function HomeRenderFlow() {
       if (!response.ok || !result?.ok || !result.job_id) {
         throw new Error(result?.error || `Upload failed (${response.status}).`);
       }
+      trackAnalyticsEvent("package_upload_completed", { ...analyticsMetadata, status: "complete" });
       const priceResponse = await fetch(`${WEB_RENDER_API_BASE}/jobs/${encodeURIComponent(result.job_id)}/price`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -161,6 +171,7 @@ export default function HomeRenderFlow() {
       if (!priceResponse.ok || !priceResult?.ok) {
         throw new Error(priceResult?.error || `Pricing failed (${priceResponse.status}).`);
       }
+      trackAnalyticsEvent("render_priced", { ...analyticsMetadata, status: "priced" });
       const params = new URLSearchParams({
         job_id: result.job_id,
         download_token: result.download_token || "",
@@ -188,7 +199,11 @@ export default function HomeRenderFlow() {
           <a className="pj-btn pj-btn--blue" href="#dropzone">
             Send package
           </a>
-          <a className="pj-btn pj-btn--tertiary" href="/downloads">
+          <a
+            className="pj-btn pj-btn--tertiary"
+            href="/downloads"
+            onClick={() => trackAnalyticsEvent("nodemuncher_clicked", { status: "cta" })}
+          >
             Become a render partner
           </a>
         </div>

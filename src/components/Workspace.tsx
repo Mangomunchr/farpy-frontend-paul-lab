@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { WEB_RENDER_API_BASE } from "@/lib/webRenderApi";
+import { trackAnalyticsEvent, trackAnalyticsEventOnce } from "@/lib/analytics";
 import { JourneyTimeline, type JourneyTimelineStateMap } from "@/components/JourneyTimeline";
 import {
   formatRendererName,
@@ -11,7 +12,7 @@ import {
   worldStatusLabels,
 } from "@/lib/worldLanguage";
 
-type JobStatus = "queued" | "submitted" | "running" | "complete" | "failed";
+type JobStatus = "created" | "uploaded" | "queued" | "submitted" | "running" | "complete" | "failed" | "cancelled" | "expired";
 
 type JobResponse = {
   ok: boolean;
@@ -25,7 +26,11 @@ type JobResponse = {
   created_at?: string;
   submitted_at?: string;
   started_at?: string;
+  claimed_at?: string;
+  claimed_by?: string;
   completed_at?: string;
+  cancelled_at?: string;
+  expired_at?: string;
   updated_at?: string;
   filename?: string;
   renderer?: string;
@@ -48,9 +53,10 @@ type JobResponse = {
   render_timeout_seconds?: number;
   render_timeout_ms?: number;
   price_cents?: number | null;
-  payment_status?: "unpriced" | "priced" | "checkout_created" | "authorized" | "captured" | "failed" | "not_charged";
+  payment_status?: "unpriced" | "priced" | "checkout_created" | "authorized" | "captured" | "failed" | "not_charged" | "refunded";
   payment_mode?: "wallet" | "direct_checkout" | string;
   wallet_debit_cents?: number | null;
+  wallet_refund_cents?: number | null;
   balance_after_cents?: number | null;
   payment_captured_at?: string | null;
   output_filename?: string;
@@ -156,6 +162,19 @@ async function submitRender(jobId: string): Promise<JobResponse> {
   return json;
 }
 
+async function cancelRender(jobId: string, token: string): Promise<JobResponse> {
+  const res = await fetch(`${JOB_API_BASE}/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  const json = (await res.json().catch(() => ({}))) as JobResponse;
+  if (!res.ok) return { ok: false, error: json.error || `status_${res.status}` };
+  return json;
+}
+
 async function createCheckoutSession(jobId: string): Promise<JobResponse & { checkout_url?: string }> {
   const res = await fetch(`${JOB_API_BASE}/jobs/${encodeURIComponent(jobId)}/create-checkout-session`, {
     method: "POST",
@@ -255,6 +274,7 @@ export default function Workspace({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
   const [auth, setAuth] = useState<AuthResponse>({ authenticated: false });
   const [authChecked, setAuthChecked] = useState(false);
@@ -302,6 +322,7 @@ export default function Workspace({
       setLoading(false);
       return;
     }
+    if (["complete", "failed", "cancelled", "expired"].includes(job?.status || "")) return;
 
     let alive = true;
     const controller = new AbortController();
@@ -333,13 +354,23 @@ export default function Workspace({
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [jobId]);
+  }, [job?.status, jobId]);
 
   useEffect(() => {
     if (job?.status !== "running") return;
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [job?.status]);
+
+  useEffect(() => {
+    if (!jobId || job?.status !== "complete") return;
+    trackAnalyticsEventOnce("render_completed", jobId, {
+      frame_count: job.frame_count,
+      renderer: job.renderer,
+      price_cents: job.price_cents,
+      status: "complete",
+    });
+  }, [job?.frame_count, job?.price_cents, job?.renderer, job?.status, jobId]);
 
   const status = useMemo<JobStatus | null>(() => job?.status || null, [job]);
   const failure = useMemo(() => classifyFailure(job), [job]);
@@ -355,6 +386,12 @@ export default function Workspace({
     setSubmitting(false);
     if (result.ok) {
       setJob(result);
+      trackAnalyticsEvent("render_submitted", {
+        frame_count: Number.isInteger(job?.frame_count) ? job?.frame_count : undefined,
+        renderer: typeof job?.renderer === "string" ? job.renderer : undefined,
+        price_cents: Number.isInteger(job?.price_cents) ? job?.price_cents : undefined,
+        status: "submitted",
+      });
       void refreshWalletBalance();
       return;
     }
@@ -377,6 +414,23 @@ export default function Workspace({
     setError("Unable to start checkout.");
   };
 
+  const cancelQueuedRender = async () => {
+    if (!jobId || cancelling) return;
+    setCancelling(true);
+    setError("");
+    const result = await cancelRender(jobId, downloadToken).catch((err: Error) => ({
+      ok: false,
+      error: err.message,
+    }));
+    if (result.ok) {
+      setJob(result);
+      void refreshWalletBalance();
+      return;
+    }
+    setCancelling(false);
+    setError(result.error || "Could not cancel this render.");
+  };
+
   const signInToPay = () => {
     const current = typeof window !== "undefined"
       ? `${window.location.pathname}${window.location.search}`
@@ -397,6 +451,12 @@ export default function Workspace({
       ? Number(job?.rendered_file_count)
       : null;
   const nodeLabel = job?.worker_id || job?.node_id || null;
+  const canCancel = Boolean(job)
+    && ["created", "uploaded", "queued", "submitted"].includes(job?.status || "")
+    && !job?.claimed_at
+    && !job?.claimed_by
+    && !job?.worker_id
+    && !job?.node_id;
   const priceCents = Number.isInteger(job?.price_cents) ? Number(job?.price_cents) : 0;
   const hasPrice = priceCents > 0;
   const isAuthenticated = Boolean(auth.authenticated);
@@ -489,7 +549,9 @@ export default function Workspace({
   const displayStage =
     status === "complete" ? "Complete"
       : status === "failed" ? "Failed"
-        : hasOutput ? "Packaging"
+        : status === "cancelled" ? "Cancelled"
+          : status === "expired" ? "Expired"
+            : hasOutput ? "Packaging"
           : status === "running" ? "Rendering"
             : nodeLabel || job?.started_at ? "Accepted"
               : hasEnteredDispatch ? "Waiting for render partner"
@@ -720,6 +782,24 @@ export default function Workspace({
                 </button>
               ) : null}
 
+              {canCancel ? (
+                <div className="render-actions">
+                  <button className="pj-btn" type="button" disabled={cancelling} onClick={cancelQueuedRender}>
+                    {cancelling ? "Cancelling..." : "Cancel Render"}
+                  </button>
+                </div>
+              ) : null}
+
+              {status === "cancelled" || status === "expired" ? (
+                <div className="render-failure-panel" role="status">
+                  <div>
+                    <strong>{status === "cancelled" ? "Cancelled" : "Expired"}</strong>
+                    <p>{status === "cancelled" ? "This render was cancelled before a worker claimed it." : "This render expired while waiting for a worker."}</p>
+                    {Number.isInteger(job.wallet_refund_cents) ? <span>Refund: {formatCents(job.wallet_refund_cents)}</span> : null}
+                  </div>
+                </div>
+              ) : null}
+
               {hasOutput && status !== "complete" && status !== "failed" ? (
                 <div className="render-packaging-note" role="status">
                   <div>
@@ -776,7 +856,16 @@ export default function Workspace({
                   </dl>
                   <div className="render-actions render-actions-primary render-complete-actions">
                     {job.can_download && downloadToken ? (
-                      <a className="pj-btn pj-btn--blue render-download-primary" href={`${JOB_API_BASE}/jobs/${encodeURIComponent(jobId)}/download?token=${encodeURIComponent(downloadToken)}`}>
+                      <a
+                        className="pj-btn pj-btn--blue render-download-primary"
+                        href={`${JOB_API_BASE}/jobs/${encodeURIComponent(jobId)}/download?token=${encodeURIComponent(downloadToken)}`}
+                        onClick={() => trackAnalyticsEvent("render_downloaded", {
+                          frame_count: job.frame_count,
+                          renderer: job.renderer,
+                          price_cents: job.price_cents,
+                          status: "complete",
+                        })}
+                      >
                         <span>Download result</span>
                         {downloadMeta ? <small>{downloadMeta}</small> : null}
                       </a>

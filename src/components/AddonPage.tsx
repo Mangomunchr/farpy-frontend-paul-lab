@@ -1,5 +1,7 @@
 ﻿import Link from "next/link";
 
+import TrackedDownloadLink from "@/components/TrackedDownloadLink";
+
 const ADDON_ZIP_PATH = "/downloads/Farpy-Blender-Addon-unified.zip";
 const ADDON_SHA256 = "8D5CA2D53C2C71736BF9D7205D61D07D49AF40C2BB8E6EA97B697ABC6FC6260B";
 
@@ -18,9 +20,9 @@ export default function AddonPage() {
               workspace, and open the delivery receipt after the package is delivered.
             </p>
             <div className="addon-actions">
-              <a className="btn btn-primary addon-dl" href={ADDON_ZIP_PATH} download>
+              <TrackedDownloadLink className="btn btn-primary addon-dl" href={ADDON_ZIP_PATH} fileType="zip" download>
                 Download add-on ZIP
-              </a>
+              </TrackedDownloadLink>
               <Link className="btn btn-secondary" href="/workspace" prefetch={false}>
                 Open Workspace
               </Link>

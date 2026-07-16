@@ -2,15 +2,7 @@
 
 import { useEffect } from "react";
 import Script from "next/script";
-
-declare global {
-  interface Window {
-    dataLayer?: unknown[];
-    gtag?: (...args: unknown[]) => void;
-  }
-}
-
-const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-X0KC9HNPRJ";
+import { GA_MEASUREMENT_ID, trackGaPageView } from "@/lib/analytics";
 const FIREHOSE_URL = process.env.NEXT_PUBLIC_FIREHOSE_URL || "";
 const PAGE_VIEW_EVENT = "page_view";
 
@@ -37,11 +29,7 @@ const currentPayload = (): PageViewPayload => ({
 
 const sendPageView = (payload: PageViewPayload) => {
   if (GA_MEASUREMENT_ID && typeof window.gtag === "function") {
-    window.gtag("event", PAGE_VIEW_EVENT, {
-      page_path: payload.page_path,
-      page_location: payload.page_location,
-      page_title: payload.page_title,
-    });
+    trackGaPageView(payload.page_path, payload.page_location, payload.page_title);
   }
 
   if (FIREHOSE_URL) {
@@ -116,8 +104,11 @@ export default function Analytics() {
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               window.gtag = window.gtag || gtag;
-              gtag('js', new Date());
-              gtag('config', '${GA_MEASUREMENT_ID}', { send_page_view: false });
+              if (!window.__farpyGa4Initialized) {
+                window.__farpyGa4Initialized = true;
+                gtag('js', new Date());
+                gtag('config', '${GA_MEASUREMENT_ID}', { send_page_view: false });
+              }
             `}
           </Script>
         </>
