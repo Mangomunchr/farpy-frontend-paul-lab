@@ -342,7 +342,7 @@ export default function HomeRenderFlow() {
               <footer className="pj-card__footer">
                 <div className="fy-upload-status">
                   <p className="pj-card__footer-text">
-                    {uploading ? "Securely sending your package…" : "Failed frames cost $0, so this is the most you would ever pay."}
+                    {uploading ? "Securely sending your packageâ€¦" : "Failed frames cost $0, so this is the most you would ever pay."}
                   </p>
                   <div
                     className="fy-upload-progress"
@@ -363,7 +363,7 @@ export default function HomeRenderFlow() {
                     }}
                   >
                     {uploading && <span className="fy-button-spinner" aria-hidden="true" />}
-                    {uploading ? "Sending package…" : "Send package"}
+                    {uploading ? "Sending packageâ€¦" : "Send package"}
                   </button>
                 </div>
               </footer>
